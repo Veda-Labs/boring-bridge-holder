@@ -5,7 +5,7 @@ resolution = true
 skip-lint = false
 
 [programs.localnet]
-boring_bridge_holder = "Bczc1RjtmUfuV15QW3bFefcYrUKAYgx2J3cgvjd7VBqX"
+boring_bridge_holder = "AWzzXzsLQvddsYdphCV6CTcr5ALXtg8AAtZXTqbUcVBF"
 
 [registry]
 url = "https://api.apr.dev"

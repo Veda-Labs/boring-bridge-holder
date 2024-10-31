@@ -20,9 +20,9 @@ describe("boring-bridge-holder", () => {
     mailboxProgram: new anchor.web3.PublicKey("EitxJuv2iBjsg2d7jVy2LDC1e2zBrx4GB5Y9h2Ko3A9Y"),
     mailboxOutbox: new anchor.web3.PublicKey("FKKDGYumoKjQjVEejff6MD1FpKuBs6SdgAobVdJdE21B"),
     messageDispatchAuthority: new anchor.web3.PublicKey("HncL4avgJq8uH2cGaAUf5rF2SS2ZLKH3MEyq97WFNmv6"),
-    igbProgram: new anchor.web3.PublicKey("Hs7KVBU67nBnWhDPZkEFwWqrFMUfJbmY2DQ4gmCZfaZp"),
-    igbProgramData: new anchor.web3.PublicKey("FvGvXJf6bd2wx8FxzsYNzd2uHaPy7JTkmuKiVvSTt7jm"),
-    igbAccount: new anchor.web3.PublicKey("3Wp4qKkgf4tjXz1soGyTSndCgBPLZFSrZkiDZ8Qp9EEj"),
+    igpProgram: new anchor.web3.PublicKey("Hs7KVBU67nBnWhDPZkEFwWqrFMUfJbmY2DQ4gmCZfaZp"),
+    igpProgramData: new anchor.web3.PublicKey("FvGvXJf6bd2wx8FxzsYNzd2uHaPy7JTkmuKiVvSTt7jm"),
+    igpAccount: new anchor.web3.PublicKey("3Wp4qKkgf4tjXz1soGyTSndCgBPLZFSrZkiDZ8Qp9EEj"),
     tokenSender: new anchor.web3.PublicKey("ABb3i11z7wKoGCfeRQNQbVYWjAm7jG7HzZnDLV4RKRbK"),
     token2022Program: new anchor.web3.PublicKey("TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb"),
     mintAuth: new anchor.web3.PublicKey("AKEWE7Bgh87GPp171b4cJPSSZfmZwQ3KaqYqXoKLNAEE"),
@@ -267,7 +267,7 @@ describe("boring-bridge-holder", () => {
   
     const gasPaymentPda = anchor.web3.PublicKey.findProgramAddressSync(
       [Buffer.from("gas_payment"), uniqueMessage.publicKey.toBuffer()],
-      configParams.igbProgram
+      configParams.igpProgram
   );
 
     const amount = new Array(32).fill(0);
@@ -288,10 +288,10 @@ describe("boring-bridge-holder", () => {
           messageDispatchAuthority: configParams.messageDispatchAuthority,
           uniqueMessage: uniqueMessage.publicKey,
           messageStoragePda: messageStoragePda,
-          igbProgram: configParams.igbProgram,
-          igbProgramData: configParams.igbProgramData,
+          igpProgram: configParams.igpProgram,
+          igpProgramData: configParams.igpProgramData,
           gasPaymentPda: gasPaymentPda,
-          igbAccount: configParams.igbAccount,
+          igpAccount: configParams.igpAccount,
           tokenSender: configParams.tokenSender,
           token2022: configParams.token2022Program,
           mintAuth: configParams.mintAuth,
@@ -316,7 +316,7 @@ describe("boring-bridge-holder", () => {
     
     const [gasPaymentPda] = anchor.web3.PublicKey.findProgramAddressSync(
       [Buffer.from("gas_payment"), uniqueMessage.publicKey.toBuffer()],
-      configParams.igbProgram
+      configParams.igpProgram
     );
 
     const amount = new Array(32).fill(0);
@@ -339,10 +339,10 @@ describe("boring-bridge-holder", () => {
           messageDispatchAuthority: configParams.messageDispatchAuthority,
           uniqueMessage: uniqueMessage.publicKey,
           messageStoragePda: messageStoragePda,
-          igbProgram: configParams.igbProgram,
-          igbProgramData: configParams.igbProgramData,
+          igpProgram: configParams.igpProgram,
+          igpProgramData: configParams.igpProgramData,
           gasPaymentPda: gasPaymentPda,
-          igbAccount: configParams.igbAccount,
+          igpAccount: configParams.igpAccount,
           tokenSender: configParams.tokenSender,
           token2022: configParams.token2022Program,
           mintAuth: configParams.mintAuth,

@@ -5,7 +5,7 @@ use borsh::{BorshDeserialize, BorshSerialize};
 use solana_program::hash::hash;
 use solana_program::pubkey::Pubkey;
 
-declare_id!("Bczc1RjtmUfuV15QW3bFefcYrUKAYgx2J3cgvjd7VBqX");
+declare_id!("AWzzXzsLQvddsYdphCV6CTcr5ALXtg8AAtZXTqbUcVBF");
 
 // Logic for transfer_remote
 // https://github.com/hyperlane-xyz/hyperlane-monorepo/blob/main/rust/sealevel/libraries/hyperlane-sealevel-token/src/processor.rs#L275
@@ -21,8 +21,8 @@ declare_id!("Bczc1RjtmUfuV15QW3bFefcYrUKAYgx2J3cgvjd7VBqX");
 // 7) MY ADDRESS: Hv4wFFTubQtULBCHR64H1CZ5KJezgH8GCiMr3PjtFyhJ, but I think this would be the programs accounts ID? the one that holds the token // const
 // 8) unique message? different for all of them, maybe you rng some account? // input I think this might just be a random account that has never been used before
 // 9) So a message storage PDA? My thinking is this something that is calculated offchain using sender address, and some nonce and bump? //input
-// OPTIONAL 10) IGB program: Hs7KVBU67nBnWhDPZkEFwWqrFMUfJbmY2DQ4gmCZfaZp // config
-// OPTIONAL 11) IGB Program data: FvGvXJf6bd2wx8FxzsYNzd2uHaPy7JTkmuKiVvSTt7jm // config
+// OPTIONAL 10) IGP program: Hs7KVBU67nBnWhDPZkEFwWqrFMUfJbmY2DQ4gmCZfaZp // config
+// OPTIONAL 11) IGP Program data: FvGvXJf6bd2wx8FxzsYNzd2uHaPy7JTkmuKiVvSTt7jm // config
 // OPTIONAL 12) Gas payment PDA, again think its like the message storage PDA. // input
 // OPTIONAL 13) IGP account: 3Wp4qKkgf4tjXz1soGyTSndCgBPLZFSrZkiDZ8Qp9EEj // config
 // 14) Token sender: ABb3i11z7wKoGCfeRQNQbVYWjAm7jG7HzZnDLV4RKRbK // config
@@ -123,9 +123,9 @@ mod boring_bridge_holder {
             mailbox_program: ctx.accounts.mailbox_program.key(),
             mailbox_outbox: ctx.accounts.mailbox_outbox.key(),
             message_dispatch_authority: ctx.accounts.message_dispatch_authority.key(),
-            igb_program: ctx.accounts.igb_program.key(),
-            igb_program_data: ctx.accounts.igb_program_data.key(),
-            igb_account: ctx.accounts.igb_account.key(),
+            igp_program: ctx.accounts.igp_program.key(),
+            igp_program_data: ctx.accounts.igp_program_data.key(),
+            igp_account: ctx.accounts.igp_account.key(),
             token_sender: ctx.accounts.token_sender.key(),
             token_2022_program: ctx.accounts.token_2022.key(),
             mint_auth: ctx.accounts.mint_auth.key(),
@@ -159,10 +159,10 @@ mod boring_bridge_holder {
             AccountMeta::new(ctx.accounts.boring_account.key(), true),
             AccountMeta::new_readonly(ctx.accounts.unique_message.key(), true),
             AccountMeta::new(ctx.accounts.message_storage_pda.key(), false),
-            AccountMeta::new_readonly(ctx.accounts.igb_program.key(), false),
-            AccountMeta::new(ctx.accounts.igb_program_data.key(), false),
+            AccountMeta::new_readonly(ctx.accounts.igp_program.key(), false),
+            AccountMeta::new(ctx.accounts.igp_program_data.key(), false),
             AccountMeta::new(ctx.accounts.gas_payment_pda.key(), false),
-            AccountMeta::new_readonly(ctx.accounts.igb_account.key(), false),
+            AccountMeta::new_readonly(ctx.accounts.igp_account.key(), false),
             AccountMeta::new(ctx.accounts.token_sender.key(), false),
             AccountMeta::new_readonly(ctx.accounts.token_2022.key(), false),
             AccountMeta::new(ctx.accounts.mint_auth.key(), false),
@@ -190,10 +190,10 @@ mod boring_bridge_holder {
                 ctx.accounts.boring_account.to_account_info(),
                 ctx.accounts.unique_message.to_account_info(),
                 ctx.accounts.message_storage_pda.to_account_info(),
-                ctx.accounts.igb_program.to_account_info(),
-                ctx.accounts.igb_program_data.to_account_info(),
+                ctx.accounts.igp_program.to_account_info(),
+                ctx.accounts.igp_program_data.to_account_info(),
                 ctx.accounts.gas_payment_pda.to_account_info(),
-                ctx.accounts.igb_account.to_account_info(),
+                ctx.accounts.igp_account.to_account_info(),
                 ctx.accounts.token_sender.to_account_info(),
                 ctx.accounts.token_2022.to_account_info(),
                 ctx.accounts.mint_auth.to_account_info(),
@@ -283,27 +283,27 @@ pub struct TransferRemoteContext<'info> {
     )]
     /// CHECK: This is the message storage PDA
     pub message_storage_pda: AccountInfo<'info>,
-    /// IGB Program
+    /// IGP Program
     #[account()]
     /// CHECK: Checked in config hash
-    pub igb_program: AccountInfo<'info>,
-    /// IGB Program Data
+    pub igp_program: AccountInfo<'info>,
+    /// IGP Program Data
     #[account()]
     /// CHECK: Checked in config hash
-    pub igb_program_data: AccountInfo<'info>,
+    pub igp_program_data: AccountInfo<'info>,
     /// Gas payment PDA
     #[account(
         mut,
         seeds = [b"gas_payment", unique_message.key().as_ref()],
         bump,
-        seeds::program = igb_program.key()
+        seeds::program = igp_program.key()
     )]
     /// CHECK: not needed
     pub gas_payment_pda: AccountInfo<'info>,
-    /// IGB Account
+    /// IGP Account
     #[account()]
     /// CHECK: Checked in config hash
-    pub igb_account: AccountInfo<'info>,
+    pub igp_account: AccountInfo<'info>,
     /// Token Sender
     #[account()]
     /// CHECK: Checked in config hash
@@ -343,9 +343,9 @@ pub struct ConfigurationData {
     mailbox_program: Pubkey,
     mailbox_outbox: Pubkey,
     message_dispatch_authority: Pubkey,
-    igb_program: Pubkey,
-    igb_program_data: Pubkey,
-    igb_account: Pubkey,
+    igp_program: Pubkey,
+    igp_program_data: Pubkey,
+    igp_account: Pubkey,
     token_sender: Pubkey,
     token_2022_program: Pubkey,
     mint_auth: Pubkey,
