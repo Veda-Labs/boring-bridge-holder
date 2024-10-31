@@ -5,7 +5,7 @@ use borsh::{BorshDeserialize, BorshSerialize};
 use solana_program::hash::hash;
 use solana_program::pubkey::Pubkey;
 
-declare_id!("9r1KKPDBrJDMST1BDvua1ah1WMDeMAg36NrD2cCTd1vz");
+declare_id!("Bczc1RjtmUfuV15QW3bFefcYrUKAYgx2J3cgvjd7VBqX");
 
 // Logic for transfer_remote
 // https://github.com/hyperlane-xyz/hyperlane-monorepo/blob/main/rust/sealevel/libraries/hyperlane-sealevel-token/src/processor.rs#L275
@@ -42,10 +42,6 @@ mod boring_bridge_holder {
     ) -> Result<()> {
         // Check if the account is already initialized
         let boring_account = &mut ctx.accounts.boring_account;
-        require!(
-            boring_account.owner == Pubkey::default(),
-            CustomError::AlreadyInitialized
-        );
 
         boring_account.owner = owner;
         boring_account.strategist = strategist;
@@ -244,11 +240,7 @@ pub struct UpdateConfiguration<'info> {
 
 #[derive(Accounts)]
 pub struct TransferRemoteContext<'info> {
-    #[account(
-        mut,
-        signer,
-        constraint = boring_account.owner == *__program_id
-    )]
+    #[account(mut)]
     pub boring_account: Account<'info, BoringState>,
     #[account(mut)] // might not be needed
     pub signer: Signer<'info>,
@@ -283,7 +275,12 @@ pub struct TransferRemoteContext<'info> {
     /// CHECK: This is the gas payment account
     pub unique_message: AccountInfo<'info>,
     /// Message storage PDA
-    #[account(mut)]
+    #[account(
+        mut,
+        seeds = [b"dispatched_message", unique_message.key().as_ref()],
+        bump,
+        seeds::program = mailbox_program.key()
+    )]
     /// CHECK: This is the message storage PDA
     pub message_storage_pda: AccountInfo<'info>,
     /// IGB Program
@@ -295,7 +292,12 @@ pub struct TransferRemoteContext<'info> {
     /// CHECK: Checked in config hash
     pub igb_program_data: AccountInfo<'info>,
     /// Gas payment PDA
-    #[account(mut)]
+    #[account(
+        mut,
+        seeds = [b"gas_payment", unique_message.key().as_ref()],
+        bump,
+        seeds::program = igb_program.key()
+    )]
     /// CHECK: not needed
     pub gas_payment_pda: AccountInfo<'info>,
     /// IGB Account
@@ -311,7 +313,7 @@ pub struct TransferRemoteContext<'info> {
     /// CHECK: Checked in config hash
     pub token_2022: AccountInfo<'info>,
     /// Mint Authority
-    #[account(owner = token_2022.key())]
+    #[account()]
     /// CHECK: Checked in config hash
     pub mint_auth: AccountInfo<'info>,
     /// Token Sender Associated Account
@@ -372,8 +374,6 @@ pub struct BoringState {
 pub enum CustomError {
     #[msg("OnlyOwner")]
     Unauthorized,
-    #[msg("ReInitialized")]
-    AlreadyInitialized,
     #[msg("Invalid Configuration")]
     InvalidConfiguration,
 }

@@ -179,6 +179,23 @@ describe("boring-bridge-holder", () => {
     expect(updatedConfigHash2).to.deep.equal(existingConfigHash);
   });
 
+  it("Cannot re initialize", async () => {
+    try {
+      await program.methods
+        .initialize(owner.publicKey, strategist.publicKey, configParams, destinationDomain, evm_target)
+      .accounts({
+        boringAccount: holder.publicKey,
+        signer: owner.publicKey,
+      })
+      .signers([holder])
+      .rpc();
+      expect.fail("Should have thrown error");
+    } catch (e) {
+      // expect(e.toString()).to.include("ReInitialized");
+    }
+  });
+
+
   it("Only owner can transfer ownership", async () => {
     const randomUser = anchor.web3.Keypair.generate();
     const newOwner = anchor.web3.Keypair.generate();
@@ -236,10 +253,23 @@ describe("boring-bridge-holder", () => {
   });
 
   it("Only strategist can transfer remote", async () => {
+    // Create random user that tries to call transfer remote.
     const randomUser = anchor.web3.Keypair.generate();
+
+    // This should be a random key pair.
     const uniqueMessage = anchor.web3.Keypair.generate();
-    const messageStoragePda = anchor.web3.Keypair.generate();
-    const gasPaymentPda = anchor.web3.Keypair.generate();
+
+    // Derive PDAs using unique message
+    const messageStoragePda = anchor.web3.PublicKey.findProgramAddressSync(
+      [Buffer.from("dispatched_message"), uniqueMessage.publicKey.toBuffer()],
+      configParams.mailboxProgram
+    );
+  
+    const gasPaymentPda = anchor.web3.PublicKey.findProgramAddressSync(
+      [Buffer.from("gas_payment"), uniqueMessage.publicKey.toBuffer()],
+      configParams.igbProgram
+  );
+
     const amount = new Array(32).fill(0);
 
     // Should fail when called by random user
@@ -257,35 +287,83 @@ describe("boring-bridge-holder", () => {
           mailboxOutbox: configParams.mailboxOutbox,
           messageDispatchAuthority: configParams.messageDispatchAuthority,
           uniqueMessage: uniqueMessage.publicKey,
-          messageStoragePda: messageStoragePda.publicKey,
+          messageStoragePda: messageStoragePda,
           igbProgram: configParams.igbProgram,
           igbProgramData: configParams.igbProgramData,
-          gasPaymentPda: gasPaymentPda.publicKey,
+          gasPaymentPda: gasPaymentPda,
           igbAccount: configParams.igbAccount,
           tokenSender: configParams.tokenSender,
           token2022: configParams.token2022Program,
           mintAuth: configParams.mintAuth,
           tokenSenderAssociated: configParams.tokenSenderAssociated,
         })
-        .signers([randomUser, uniqueMessage, messageStoragePda, gasPaymentPda])
+        .signers([randomUser, uniqueMessage])
         .rpc();
       expect.fail("Should have thrown error");
     } catch (e) {
       expect(e.toString()).to.include("Unauthorized");
     }
-
-    // // Should succeed when called by strategist
-    // const tx = await program.methods
-    //   .transferRemote(amount)
-    //   .accounts({
-    //     boringAccount: holder.publicKey,
-    //     signer: strategist.publicKey,
-    //     // Add other required accounts here
-    //   })
-    //   .signers([strategist])
-    //   .rpc();
-
-    // await anchor.AnchorProvider.env().connection.confirmTransaction(tx);
   });
 
+  it("Strategist cannot transfer remote with invalid config", async () => {
+    const uniqueMessage = anchor.web3.Keypair.generate();
+    
+    // Derive PDAs
+    const [messageStoragePda] = anchor.web3.PublicKey.findProgramAddressSync(
+      [Buffer.from("dispatched_message"), uniqueMessage.publicKey.toBuffer()],
+      configParams.mailboxProgram
+    );
+    
+    const [gasPaymentPda] = anchor.web3.PublicKey.findProgramAddressSync(
+      [Buffer.from("gas_payment"), uniqueMessage.publicKey.toBuffer()],
+      configParams.igbProgram
+    );
+
+    const amount = new Array(32).fill(0);
+
+    // Create modified config with different target program
+    const invalidTargetProgram = anchor.web3.Keypair.generate().publicKey;
+
+    try {
+      await program.methods
+        .transferRemote(amount)
+        .accounts({
+          boringAccount: holder.publicKey,
+          signer: strategist.publicKey,
+          targetProgram: invalidTargetProgram, // Using different target program
+          systemProgram: anchor.web3.SystemProgram.programId,
+          noop: configParams.noop,
+          tokenPda: configParams.tokenPda,
+          mailboxProgram: configParams.mailboxProgram,
+          mailboxOutbox: configParams.mailboxOutbox,
+          messageDispatchAuthority: configParams.messageDispatchAuthority,
+          uniqueMessage: uniqueMessage.publicKey,
+          messageStoragePda: messageStoragePda,
+          igbProgram: configParams.igbProgram,
+          igbProgramData: configParams.igbProgramData,
+          gasPaymentPda: gasPaymentPda,
+          igbAccount: configParams.igbAccount,
+          tokenSender: configParams.tokenSender,
+          token2022: configParams.token2022Program,
+          mintAuth: configParams.mintAuth,
+          tokenSenderAssociated: configParams.tokenSenderAssociated,
+        })
+        .signers([strategist, uniqueMessage])
+        .rpc();
+      expect.fail("Should have thrown error");
+    } catch (e) {
+      expect(e.toString()).to.include("InvalidConfiguration");
+    }
+  });
+
+  // TODO now add in a test that "forks" mainnet by loading in the programs and accounts from eclipse that I need.
+  // Then I am going to need to have to somehow edit my boringAccounts token account to give it some tokens, AND I will
+  // probs need to edit the associated token program to make that work cuz that is a PDA so it should be derived as such.
+
+  // These lines are interesting. It does look like the unique message is literally just a random kaypair
+  // And that the 
+  // https://github.com/hyperlane-xyz/hyperlane-monorepo/blob/main/rust/sealevel/programs/hyperlane-sealevel-token/tests/functional.rs#L705-L713
+
+  // Okay and I think this line is useful for determine the recipient associated token account.
+  // https://github.com/hyperlane-xyz/hyperlane-monorepo/blob/main/rust/sealevel/programs/hyperlane-sealevel-token/tests/functional.rs#L459-L464
 });
