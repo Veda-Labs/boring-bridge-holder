@@ -261,14 +261,26 @@ describe("boring-bridge-holder", () => {
 
     // Derive PDAs using unique message
     const messageStoragePda = anchor.web3.PublicKey.findProgramAddressSync(
-      [Buffer.from("dispatched_message"), uniqueMessage.publicKey.toBuffer()],
+      [
+        Buffer.from("hyperlane"),
+        Buffer.from("-"),
+        Buffer.from("dispatched_message"),
+        Buffer.from("-"),
+        uniqueMessage.publicKey.toBuffer()
+      ],
       configParams.mailboxProgram
     );
   
     const gasPaymentPda = anchor.web3.PublicKey.findProgramAddressSync(
-      [Buffer.from("gas_payment"), uniqueMessage.publicKey.toBuffer()],
+      [
+        Buffer.from("hyperlane_igp"),
+        Buffer.from("-"),
+        Buffer.from("gas_payment"),
+        Buffer.from("-"),
+        uniqueMessage.publicKey.toBuffer()
+      ],
       configParams.igpProgram
-  );
+    );
 
     const amount = new Array(32).fill(0);
 
@@ -310,12 +322,24 @@ describe("boring-bridge-holder", () => {
     
     // Derive PDAs
     const [messageStoragePda] = anchor.web3.PublicKey.findProgramAddressSync(
-      [Buffer.from("dispatched_message"), uniqueMessage.publicKey.toBuffer()],
+      [
+        Buffer.from("hyperlane"),
+        Buffer.from("-"),
+        Buffer.from("dispatched_message"),
+        Buffer.from("-"),
+        uniqueMessage.publicKey.toBuffer()
+      ],
       configParams.mailboxProgram
     );
     
     const [gasPaymentPda] = anchor.web3.PublicKey.findProgramAddressSync(
-      [Buffer.from("gas_payment"), uniqueMessage.publicKey.toBuffer()],
+      [
+        Buffer.from("hyperlane_igp"),
+        Buffer.from("-"),
+        Buffer.from("gas_payment"),
+        Buffer.from("-"),
+        uniqueMessage.publicKey.toBuffer()
+      ],
       configParams.igpProgram
     );
 
@@ -354,6 +378,70 @@ describe("boring-bridge-holder", () => {
     } catch (e) {
       expect(e.toString()).to.include("InvalidConfiguration");
     }
+  });
+
+  it("Verifies PDA derivation logic", async () => {
+    // Known values from your test transaction
+    const knownUniqueMessage = new anchor.web3.PublicKey("BvSZDyyAQqJes9BwTy8HRngqk9fAHgJLA3TvzVG93rvW");
+    const knownMailboxProgram = new anchor.web3.PublicKey("EitxJuv2iBjsg2d7jVy2LDC1e2zBrx4GB5Y9h2Ko3A9Y");
+    const knownIgpProgram = new anchor.web3.PublicKey("Hs7KVBU67nBnWhDPZkEFwWqrFMUfJbmY2DQ4gmCZfaZp");
+    
+    // Expected PDA addresses from your test transaction
+    const expectedMessageStoragePda = new anchor.web3.PublicKey("7wHZmEimQKZUn96HXNDK7UUeQFvEc4raB9wEtMBhnHTi");
+    const expectedGasPaymentPda = new anchor.web3.PublicKey("ALbDN9TJ5yVwrHPr9VZW6AHzh4TpJWurqEWvNR4web3j");
+
+    // Derive PDAs using the same logic from the macros
+    const [derivedMessageStoragePda] = anchor.web3.PublicKey.findProgramAddressSync(
+      [
+        Buffer.from("hyperlane"),
+        Buffer.from("-"),
+        Buffer.from("dispatched_message"),
+        Buffer.from("-"),
+        knownUniqueMessage.toBuffer()
+      ],
+      knownMailboxProgram
+    );
+
+    const [derivedGasPaymentPda] = anchor.web3.PublicKey.findProgramAddressSync(
+      [
+        Buffer.from("hyperlane_igp"),
+        Buffer.from("-"),
+        Buffer.from("gas_payment"),
+        Buffer.from("-"),
+        knownUniqueMessage.toBuffer()
+      ],
+      knownIgpProgram
+    );
+
+    // Verify the derived PDAs match the expected addresses
+    expect(derivedMessageStoragePda.equals(expectedMessageStoragePda)).to.be.true;
+    expect(derivedGasPaymentPda.equals(expectedGasPaymentPda)).to.be.true;
+  });
+
+  it("Verifies token sender associated account derivation", async () => {
+    // Known values from your test transaction
+    const ATA_PROGRAM_ID = new anchor.web3.PublicKey('ATokenGPvbdGVxr1b2hvZbsiqW5xWH25efTNsLJA8knL');
+    
+    // Please provide these values from your test transaction:
+    const tokenSender = new anchor.web3.PublicKey("Hv4wFFTubQtULBCHR64H1CZ5KJezgH8GCiMr3PjtFyhJ");
+    const mintAuth = new anchor.web3.PublicKey("AKEWE7Bgh87GPp171b4cJPSSZfmZwQ3KaqYqXoKLNAEE");
+    const token2022Program = new anchor.web3.PublicKey("TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb");
+    
+    // Expected ATA from your test transaction
+    const expectedAta = new anchor.web3.PublicKey("4NJWKGTJuWWqhdsdnKZwskp2CQqLBtqaPkvm99du4Mpw");
+
+    // Derive the ATA
+    const [derivedAta] = anchor.web3.PublicKey.findProgramAddressSync(
+        [
+            tokenSender.toBuffer(),
+            token2022Program.toBuffer(),
+            mintAuth.toBuffer(),
+        ],
+        ATA_PROGRAM_ID
+    );
+
+    // Verify the derived ATA matches the expected address
+    expect(derivedAta.equals(expectedAta)).to.be.true;
   });
 
   // TODO now add in a test that "forks" mainnet by loading in the programs and accounts from eclipse that I need.

@@ -277,7 +277,13 @@ pub struct TransferRemoteContext<'info> {
     /// Message storage PDA
     #[account(
         mut,
-        seeds = [b"dispatched_message", unique_message.key().as_ref()],
+        seeds = [
+            b"hyperlane",
+            b"-",
+            b"dispatched_message",
+            b"-",
+            unique_message.key().as_ref()
+        ],
         bump,
         seeds::program = mailbox_program.key()
     )]
@@ -294,7 +300,13 @@ pub struct TransferRemoteContext<'info> {
     /// Gas payment PDA
     #[account(
         mut,
-        seeds = [b"gas_payment", unique_message.key().as_ref()],
+        seeds = [
+            b"hyperlane_igp",
+            b"-",
+            b"gas_payment",
+            b"-",
+            unique_message.key().as_ref()
+        ],
         bump,
         seeds::program = igp_program.key()
     )]
@@ -317,12 +329,7 @@ pub struct TransferRemoteContext<'info> {
     /// CHECK: Checked in config hash
     pub mint_auth: AccountInfo<'info>,
     /// Token Sender Associated Account
-    // #[account(mut,
-    // seeds = [b"token_sender", boring_account.key().as_ref()], // TODO not sure if token_sender is right
-    // bump,
-    // owner = token_2022.key()
-    // )]
-    #[account()]
+    #[account(mut)]
     /// CHECK: Checked in config hash
     pub token_sender_associated: AccountInfo<'info>,
 }
