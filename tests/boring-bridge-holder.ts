@@ -22,6 +22,15 @@ describe("boring-bridge-holder", () => {
   );
   });
 
+  let feePayer: anchor.web3.PublicKey;
+  let feePayerBump: number;
+  before(async () => {
+    [feePayer, feePayerBump] = anchor.web3.PublicKey.findProgramAddressSync(
+      [Buffer.from("fee_payer"), boringAccount.toBuffer()],
+      program.programId
+    );
+  });
+
   const owner = (program.provider as anchor.AnchorProvider).wallet
   const strategist = anchor.web3.Keypair.generate();
   let configParams = {
@@ -60,6 +69,7 @@ describe("boring-bridge-holder", () => {
       )
     .accounts({
       boringAccount: boringAccount,
+      feePayer: feePayer,
       signer: owner.publicKey,
     })
     .signers([])
@@ -196,9 +206,10 @@ describe("boring-bridge-holder", () => {
         .initialize(owner.publicKey, strategist.publicKey, configParams, destinationDomain, evm_target)
       .accounts({
         boringAccount: boringAccount,
+        feePayer: feePayer,
         signer: owner.publicKey,
       })
-      .signers([holder])
+      .signers([])
       .rpc();
       expect.fail("Should have thrown error");
     } catch (e) {
@@ -302,6 +313,7 @@ describe("boring-bridge-holder", () => {
         .accounts({
           boringAccount: boringAccount,
           signer: randomUser.publicKey,
+          feePayer: feePayer,
           targetProgram: configParams.targetProgram,
           systemProgram: anchor.web3.SystemProgram.programId,
           noop: configParams.noop,
@@ -365,6 +377,7 @@ describe("boring-bridge-holder", () => {
         .accounts({
           boringAccount: boringAccount,
           signer: strategist.publicKey,
+          feePayer: feePayer,
           targetProgram: invalidTargetProgram, // Using different target program
           systemProgram: anchor.web3.SystemProgram.programId,
           noop: configParams.noop,
@@ -453,6 +466,13 @@ describe("boring-bridge-holder", () => {
   });
 
   it("Can transfer remote tokens", async () => {
+
+    // Fund the fee payer with SOL for gas
+    await await anchor.AnchorProvider.env().connection.requestAirdrop(
+      feePayer,
+      1 * anchor.web3.LAMPORTS_PER_SOL // 1 SOL should be plenty for tests
+    );
+
     // 1. Create a unique message account for this transfer
     const uniqueMessage = anchor.web3.Keypair.generate();
 
@@ -479,11 +499,11 @@ describe("boring-bridge-holder", () => {
         configParams.igpProgram
     );
 
-    // 3. Get the holder's ATA
+    // 3. Get the fee payer's ATA
     // Derive the ATA
-    const [holderAta] = anchor.web3.PublicKey.findProgramAddressSync(
+    const [feePayerAta] = anchor.web3.PublicKey.findProgramAddressSync(
       [
-          boringAccount.toBuffer(),
+          feePayer.toBuffer(),
           configParams.token2022Program.toBuffer(),
           configParams.mintAuth.toBuffer(),
       ],
@@ -504,7 +524,7 @@ describe("boring-bridge-holder", () => {
     // }
 
     // 6. Update configuartion with new holder associated token account.
-    configParams.tokenSenderAssociated = holderAta;
+    configParams.tokenSenderAssociated = feePayerAta;
     // Update configuration
     const updateTx = await program.methods
       .updateConfiguration(configParams)
@@ -518,15 +538,17 @@ describe("boring-bridge-holder", () => {
     // Confirm the transaction
     await anchor.AnchorProvider.env().connection.confirmTransaction(updateTx);
 
-    console.log("Boring Account: ", boringAccount.toString());
-    console.log("Holder Account: ", holderAta.toString());
+    console.log("Fee Payer Account: ", feePayer.toString());
+    console.log("Fee Payer ATA Account: ", feePayerAta.toString());
 
     // 7. Execute the transfer
+    try {
     const tx = await program.methods
         .transferRemote(amount)
         .accounts({
             boringAccount: boringAccount,
             signer: strategist.publicKey,
+            feePayer: feePayer,
             targetProgram: configParams.targetProgram,
             systemProgram: anchor.web3.SystemProgram.programId,
             noop: configParams.noop,
@@ -543,13 +565,19 @@ describe("boring-bridge-holder", () => {
             tokenSender: configParams.tokenSender,
             token2022: configParams.token2022Program,
             mintAuth: configParams.mintAuth,
-            tokenSenderAssociated: holderAta,
+            tokenSenderAssociated: feePayerAta,
         })
         .signers([strategist, uniqueMessage])
         .rpc();
-
+        await anchor.AnchorProvider.env().connection.confirmTransaction(tx);
+    } catch (e) {
+      if (e instanceof anchor.web3.SendTransactionError) {
+        const logs = e.logs;
+        console.error("Transaction failed. Logs:", logs);
+      }
+      throw e;  // Re-throw the error after logging
+    }
     // 8. Verify the transfer was successful
-    await anchor.AnchorProvider.env().connection.confirmTransaction(tx);
 
 
     // 8. Add verification checks
