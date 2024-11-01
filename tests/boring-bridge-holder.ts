@@ -563,9 +563,6 @@ describe("boring-bridge-holder", () => {
     // Confirm the transaction
     await anchor.AnchorProvider.env().connection.confirmTransaction(updateTx);
 
-    console.log("Boring Account: ", boringAccount.toString());
-    console.log("Holder Account: ", holderAta.toString());
-
     // 7. Execute the transfer
     const tx = await program.methods
         .transferRemote(amount)

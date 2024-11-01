@@ -106,6 +106,7 @@ mod boring_bridge_holder {
         Ok(())
     }
 
+    // TODO need to handle the amount input, I am thinking we just take a u64, then convert it into a 32 byte array.
     pub fn transfer_remote(
         ctx: Context<TransferRemoteContext>,
         amount_or_id: [u8; 32],
@@ -169,7 +170,7 @@ mod boring_bridge_holder {
             },
             signer_seeds,
         );
-        token_2022::transfer_checked(transfer_cpi_context, 1000, 6)?; // TODO need to actually input the amount
+        token_2022::transfer_checked(transfer_cpi_context, 1000, 6)?; // TODO need to actually input the amount, also the token decimals? that could be in the config
 
         // Prepare the TransferRemote data
         let transfer_data = TransferRemote {
