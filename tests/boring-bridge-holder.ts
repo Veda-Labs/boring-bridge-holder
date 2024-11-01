@@ -2,7 +2,7 @@ import * as anchor from "@coral-xyz/anchor";
 import { Program } from "@coral-xyz/anchor";
 import { BoringBridgeHolder } from "../target/types/boring_bridge_holder";
 import { expect } from "chai";
-
+import { ComputeBudgetProgram } from "@solana/web3.js";
 // The signers array will automatically have the provider's wallet added to it.(which is the owner)
 describe("boring-bridge-holder", () => {
   // Configure the client to use the local cluster.
@@ -538,6 +538,8 @@ describe("boring-bridge-holder", () => {
     
     // 5. Set up the transfer amount (as a 32-byte array)
     const amount = new Array(32).fill(0);
+    amount[0] = 0xE8;
+    amount[1] = 0x03;
     // const value = BigInt(1000);
 
     // // Convert to big-endian byte array
@@ -590,6 +592,11 @@ describe("boring-bridge-holder", () => {
             strategistAta: strategistAta,
         })
         .signers([strategist, uniqueMessage])
+        .preInstructions([
+          ComputeBudgetProgram.setComputeUnitLimit({ 
+              units: 400_000  // Increase compute units
+          })
+      ])
         .rpc();
 
     // 8. Verify the transfer was successful
