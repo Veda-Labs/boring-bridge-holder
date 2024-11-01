@@ -50,6 +50,7 @@ mod boring_bridge_holder {
         boring_account.destination_domain = destination_domain;
         boring_account.evm_target = evm_target;
         boring_account.bump = ctx.bumps.boring_account;
+        boring_account.fee_payer_bump = ctx.bumps.fee_payer;
 
         msg!("Set Owner to: {}!", owner); // Message will show up in the tx logs
         msg!("Set Strategist to: {}!", strategist); // Message will show up in the tx logs
@@ -158,25 +159,54 @@ mod boring_bridge_holder {
         data.extend(transfer_data.try_to_vec()?); // Serialize with Borsh
 
         // Construct the required accounts for the CPI
-        let account_metas = vec![
-            AccountMeta::new_readonly(ctx.accounts.system_program.key(), false),
-            AccountMeta::new_readonly(ctx.accounts.noop.key(), false),
-            AccountMeta::new_readonly(ctx.accounts.token_pda.key(), false),
-            AccountMeta::new_readonly(ctx.accounts.mailbox_program.key(), false),
-            AccountMeta::new(ctx.accounts.mailbox_outbox.key(), false),
-            AccountMeta::new_readonly(ctx.accounts.message_dispatch_authority.key(), false),
-            AccountMeta::new(ctx.accounts.boring_account.key(), true),
-            AccountMeta::new_readonly(ctx.accounts.unique_message.key(), true),
-            AccountMeta::new(ctx.accounts.message_storage_pda.key(), false),
-            AccountMeta::new_readonly(ctx.accounts.igp_program.key(), false),
-            AccountMeta::new(ctx.accounts.igp_program_data.key(), false),
-            AccountMeta::new(ctx.accounts.gas_payment_pda.key(), false),
-            AccountMeta::new_readonly(ctx.accounts.igp_account.key(), false),
-            AccountMeta::new(ctx.accounts.token_sender.key(), false),
-            AccountMeta::new_readonly(ctx.accounts.token_2022.key(), false),
-            AccountMeta::new(ctx.accounts.mint_auth.key(), false),
-            AccountMeta::new(ctx.accounts.token_sender_associated.key(), false),
-        ];
+        let mut account_metas = Vec::with_capacity(17);
+        account_metas.push(AccountMeta::new_readonly(
+            ctx.accounts.system_program.key(),
+            false,
+        ));
+        account_metas.push(AccountMeta::new_readonly(ctx.accounts.noop.key(), false));
+        account_metas.push(AccountMeta::new_readonly(
+            ctx.accounts.token_pda.key(),
+            false,
+        ));
+        account_metas.push(AccountMeta::new_readonly(
+            ctx.accounts.mailbox_program.key(),
+            false,
+        ));
+        account_metas.push(AccountMeta::new(ctx.accounts.mailbox_outbox.key(), false));
+        account_metas.push(AccountMeta::new_readonly(
+            ctx.accounts.message_dispatch_authority.key(),
+            false,
+        ));
+        account_metas.push(AccountMeta::new(ctx.accounts.boring_account.key(), true));
+        account_metas.push(AccountMeta::new_readonly(
+            ctx.accounts.unique_message.key(),
+            true,
+        ));
+        account_metas.push(AccountMeta::new(
+            ctx.accounts.message_storage_pda.key(),
+            false,
+        ));
+        account_metas.push(AccountMeta::new_readonly(
+            ctx.accounts.igp_program.key(),
+            false,
+        ));
+        account_metas.push(AccountMeta::new(ctx.accounts.igp_program_data.key(), false));
+        account_metas.push(AccountMeta::new(ctx.accounts.gas_payment_pda.key(), false));
+        account_metas.push(AccountMeta::new_readonly(
+            ctx.accounts.igp_account.key(),
+            false,
+        ));
+        account_metas.push(AccountMeta::new(ctx.accounts.token_sender.key(), false));
+        account_metas.push(AccountMeta::new_readonly(
+            ctx.accounts.token_2022.key(),
+            false,
+        ));
+        account_metas.push(AccountMeta::new(ctx.accounts.mint_auth.key(), false));
+        account_metas.push(AccountMeta::new(
+            ctx.accounts.token_sender_associated.key(),
+            false,
+        ));
 
         // Create the instruction
         let instruction = Instruction {
@@ -208,11 +238,18 @@ mod boring_bridge_holder {
                 ctx.accounts.mint_auth.to_account_info(),
                 ctx.accounts.token_sender_associated.to_account_info(),
             ],
-            &[&[
-                b"boring_state",
-                ctx.accounts.boring_account.owner.as_ref(),
-                &[ctx.accounts.boring_account.bump],
-            ]],
+            &[
+                &[
+                    b"fee_payer",
+                    ctx.accounts.boring_account.key().as_ref(),
+                    &[ctx.accounts.boring_account.fee_payer_bump],
+                ],
+                &[
+                    b"boring_state",
+                    ctx.accounts.boring_account.owner.as_ref(),
+                    &[ctx.accounts.boring_account.bump],
+                ],
+            ],
         )?;
 
         Ok(())
@@ -224,11 +261,20 @@ pub struct Initialize<'info> {
     #[account(
         init,
         payer = signer,
-        space = 8 + 32 + 32 + 32 + 4 + 32 + 1,
+        space = 8 + 32 + 32 + 32 + 4 + 32 + 1 + 1,
         seeds = [b"boring_state", signer.key().as_ref()],
         bump
     )]
     pub boring_account: Account<'info, BoringState>,
+    #[account(
+        init,
+        payer = signer,
+        space = 8,
+        seeds = [b"fee_payer", boring_account.key().as_ref()],
+        bump
+    )]
+    /// CHECK: This is a PDA that only holds SOL for gas fees and controls the ata with tokens in it.
+    pub fee_payer: AccountInfo<'info>,
     #[account(mut)]
     pub signer: Signer<'info>,
     pub system_program: Program<'info, System>, // Only needed when creating or initializing an account.
@@ -261,14 +307,20 @@ pub struct UpdateConfiguration<'info> {
 #[derive(Accounts)]
 pub struct TransferRemoteContext<'info> {
     #[account(
-        mut,
         seeds = [b"boring_state", boring_account.owner.as_ref()],
         bump = boring_account.bump,
     )]
     pub boring_account: Account<'info, BoringState>,
     #[account(mut)] // might not be needed
     pub signer: Signer<'info>,
-    /// Taret program
+    /// This is a PDA that only holds SOL for gas fees, and controls the ata with tokens in it.
+    #[account(
+        seeds = [b"fee_payer", boring_account.key().as_ref()],
+        bump = boring_account.fee_payer_bump
+    )]
+    /// CHECK: This is a PDA that only holds SOL for gas fees
+    pub fee_payer: AccountInfo<'info>,
+    /// Target program
     #[account()]
     /// CHECK: Checked in config hash
     pub target_program: AccountInfo<'info>,
@@ -399,6 +451,7 @@ pub struct BoringState {
     destination_domain: u32,
     evm_target: [u8; 32],
     bump: u8,
+    fee_payer_bump: u8,
 }
 
 // Errors
