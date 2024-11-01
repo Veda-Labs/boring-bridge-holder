@@ -19,7 +19,6 @@ test = "yarn run ts-mocha -p ./tsconfig.json -t 1000000 tests/**/*.ts"
 
 [test.validator]
 url = "https://eclipse.helius-rpc.com"
-logs = true
 
 # Core Programs
 [[test.validator.clone]]

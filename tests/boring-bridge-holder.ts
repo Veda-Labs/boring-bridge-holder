@@ -49,7 +49,12 @@ describe("boring-bridge-holder", () => {
     tokenSenderAssociated: new anchor.web3.PublicKey("4NJWKGTJuWWqhdsdnKZwskp2CQqLBtqaPkvm99du4Mpw"),
   }
   const destinationDomain = 1;
-  const evm_target = new Array(32).fill(0);
+  const evmAddressHex = "0x0463E60C7cE10e57911AB7bD1667eaa21de3e79b".slice(2); // remove '0x' prefix
+  const evm_target = Buffer.concat([
+      Buffer.alloc(12, 0), // 12 zero bytes
+      Buffer.from(evmAddressHex, 'hex') // 20 bytes of address
+  ]);
+  const decimals = 6;
 
   // token sender associated is wrong it would really be a a PDA using the holder account.
 
@@ -65,7 +70,8 @@ describe("boring-bridge-holder", () => {
         strategist.publicKey,
         configParams,
         destinationDomain,
-        evm_target
+        evm_target,
+        decimals
       )
     .accounts({
       boringAccount: boringAccount,
@@ -85,7 +91,7 @@ describe("boring-bridge-holder", () => {
     // Make sure the destination domain is set
     expect(holderAccount.destinationDomain).to.equal(destinationDomain);
     // Make sure the evm target is set
-    expect(holderAccount.evmTarget).to.deep.equal(evm_target);
+    expect([...holderAccount.evmTarget]).to.deep.equal([...evm_target]);
     // TODO check that config params is set.
   });
 
@@ -202,12 +208,12 @@ describe("boring-bridge-holder", () => {
   it("Cannot re initialize", async () => {
     try {
       await program.methods
-        .initialize(owner.publicKey, strategist.publicKey, configParams, destinationDomain, evm_target)
+        .initialize(owner.publicKey, strategist.publicKey, configParams, destinationDomain, evm_target, decimals)
       .accounts({
         boringAccount: boringAccount,
         signer: owner.publicKey,
       })
-      .signers([holder])
+      .signers([])
       .rpc();
       expect.fail("Should have thrown error");
     } catch (e) {
@@ -311,7 +317,7 @@ describe("boring-bridge-holder", () => {
       ATA_PROGRAM_ID
     );
 
-    const amount = new Array(32).fill(0);
+    const amount = new anchor.BN(1000);
 
     // Should fail when called by random user
     try {
@@ -382,7 +388,7 @@ describe("boring-bridge-holder", () => {
       ATA_PROGRAM_ID
     );
 
-    const amount = new Array(32).fill(0);
+    const amount = new anchor.BN(1000);
 
     // Create modified config with different target program
     const invalidTargetProgram = anchor.web3.Keypair.generate().publicKey;
@@ -482,6 +488,7 @@ describe("boring-bridge-holder", () => {
   });
 
   it("Can transfer remote tokens", async () => {
+    console.log("Boring account:", boringAccount.toString());
     // 1. Create a unique message account for this transfer
     const uniqueMessage = anchor.web3.Keypair.generate();
 
@@ -517,36 +524,25 @@ describe("boring-bridge-holder", () => {
           configParams.mintAuth.toBuffer(),
       ],
       ATA_PROGRAM_ID
-  );
+    );
 
-  const [strategistAta] = anchor.web3.PublicKey.findProgramAddressSync(
-    [
-      strategist.publicKey.toBuffer(),
-      configParams.token2022Program.toBuffer(),
-      configParams.mintAuth.toBuffer(),
-    ],
-    ATA_PROGRAM_ID
-  );
+    const [strategistAta] = anchor.web3.PublicKey.findProgramAddressSync(
+      [
+        strategist.publicKey.toBuffer(),
+        configParams.token2022Program.toBuffer(),
+        configParams.mintAuth.toBuffer(),
+      ],
+      ATA_PROGRAM_ID
+    );
 
-  await anchor.AnchorProvider.env().connection.requestAirdrop(
-    strategist.publicKey,
-    2 * anchor.web3.LAMPORTS_PER_SOL
-  );
+    await anchor.AnchorProvider.env().connection.requestAirdrop(
+      strategist.publicKey,
+      2 * anchor.web3.LAMPORTS_PER_SOL
+    );
 
-    // 4. Create and fund the holder's ATA
-    // TODO: We need to figure out how to get tokens into this account
-    
     // 5. Set up the transfer amount (as a 32-byte array)
-    const amount = new Array(32).fill(0);
-    amount[0] = 0xE8;
-    amount[1] = 0x03;
+    const amount = new anchor.BN(11000);
     // const value = BigInt(1000);
-
-    // // Convert to big-endian byte array
-    // const valueBuffer = Buffer.from(value.toString(16).padStart(64, '0'), 'hex');
-    // for (let i = 0; i < 32; i++) {
-    //     amount[i] = valueBuffer[i];
-    // }
 
     // 6. Update configuartion with new holder associated token account.
     configParams.tokenSenderAssociated = holderAta;
@@ -605,16 +601,5 @@ describe("boring-bridge-holder", () => {
     // - Check token balance changed?
     // - Check message was stored?
     // - Check gas payment was made?
-});
-
-  // TODO now add in a test that "forks" mainnet by loading in the programs and accounts from eclipse that I need.
-  // Then I am going to need to have to somehow edit my boringAccounts token account to give it some tokens, AND I will
-  // probs need to edit the associated token program to make that work cuz that is a PDA so it should be derived as such.
-
-  // These lines are interesting. It does look like the unique message is literally just a random kaypair
-  // And that the 
-  // https://github.com/hyperlane-xyz/hyperlane-monorepo/blob/main/rust/sealevel/programs/hyperlane-sealevel-token/tests/functional.rs#L705-L713
-
-  // Okay and I think this line is useful for determine the recipient associated token account.
-  // https://github.com/hyperlane-xyz/hyperlane-monorepo/blob/main/rust/sealevel/programs/hyperlane-sealevel-token/tests/functional.rs#L459-L464
+  });
 });
