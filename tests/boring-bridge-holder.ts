@@ -23,7 +23,15 @@ describe("boring-bridge-holder", () => {
   });
 
   const owner = (program.provider as anchor.AnchorProvider).wallet
-  const strategist = anchor.web3.Keypair.generate();
+  // const strategist = anchor.web3.Keypair.generate();
+  const strategist = anchor.web3.Keypair.fromSecretKey(Uint8Array.from([
+    // 64 bytes for a fixed private key
+    174, 47, 154, 16, 202, 193, 206, 113, 199, 190, 53, 133, 169, 175, 31, 56, 
+    222, 53, 138, 189, 224, 216, 117, 173, 10, 149, 53, 45, 73, 251, 237, 246, 
+    15, 185, 186, 82, 177, 240, 148, 69, 241, 227, 167, 80, 141, 89, 240, 121,
+    121, 35, 172, 247, 68, 251, 226, 218, 48, 63, 176, 109, 168, 89, 238, 135,
+]));
+
   let configParams = {
     targetProgram: new anchor.web3.PublicKey("EqRSt9aUDMKYKhzd1DGMderr3KNp29VZH3x5P7LFTC8m"),
     noop: new anchor.web3.PublicKey("noopb9bkMVfRPU8AsbpTUg8AQkHtKwMYZiFUjNRtMmV"),
@@ -293,6 +301,15 @@ describe("boring-bridge-holder", () => {
       configParams.igpProgram
     );
 
+    const [strategistAta] = anchor.web3.PublicKey.findProgramAddressSync(
+      [
+        strategist.publicKey.toBuffer(),
+        configParams.token2022Program.toBuffer(),
+        configParams.mintAuth.toBuffer(),
+      ],
+      ATA_PROGRAM_ID
+    );
+
     const amount = new Array(32).fill(0);
 
     // Should fail when called by random user
@@ -319,6 +336,7 @@ describe("boring-bridge-holder", () => {
           token2022: configParams.token2022Program,
           mintAuth: configParams.mintAuth,
           tokenSenderAssociated: configParams.tokenSenderAssociated,
+          strategistAta: strategistAta,
         })
         .signers([randomUser, uniqueMessage])
         .rpc();
@@ -354,6 +372,15 @@ describe("boring-bridge-holder", () => {
       configParams.igpProgram
     );
 
+    const [strategistAta] = anchor.web3.PublicKey.findProgramAddressSync(
+      [
+        strategist.publicKey.toBuffer(),
+        configParams.token2022Program.toBuffer(),
+        configParams.mintAuth.toBuffer(),
+      ],
+      ATA_PROGRAM_ID
+    );
+
     const amount = new Array(32).fill(0);
 
     // Create modified config with different target program
@@ -382,6 +409,7 @@ describe("boring-bridge-holder", () => {
           token2022: configParams.token2022Program,
           mintAuth: configParams.mintAuth,
           tokenSenderAssociated: configParams.tokenSenderAssociated,
+          strategistAta: strategistAta,
         })
         .signers([strategist, uniqueMessage])
         .rpc();
@@ -490,6 +518,20 @@ describe("boring-bridge-holder", () => {
       ATA_PROGRAM_ID
   );
 
+  const [strategistAta] = anchor.web3.PublicKey.findProgramAddressSync(
+    [
+      strategist.publicKey.toBuffer(),
+      configParams.token2022Program.toBuffer(),
+      configParams.mintAuth.toBuffer(),
+    ],
+    ATA_PROGRAM_ID
+  );
+
+  await anchor.AnchorProvider.env().connection.requestAirdrop(
+    strategist.publicKey,
+    2 * anchor.web3.LAMPORTS_PER_SOL
+  );
+
     // 4. Create and fund the holder's ATA
     // TODO: We need to figure out how to get tokens into this account
     
@@ -544,6 +586,7 @@ describe("boring-bridge-holder", () => {
             token2022: configParams.token2022Program,
             mintAuth: configParams.mintAuth,
             tokenSenderAssociated: holderAta,
+            strategistAta: strategistAta,
         })
         .signers([strategist, uniqueMessage])
         .rpc();

@@ -56,3 +56,5 @@ address = "AKEWE7Bgh87GPp171b4cJPSSZfmZwQ3KaqYqXoKLNAEE" # Mint Authority
 address = "Hv4wFFTubQtULBCHR64H1CZ5KJezgH8GCiMr3PjtFyhJ" # Token Holder
 [[test.validator.clone]]
 address = "9gGcoGvNyPHsDbzaLspisVa48J6Hsj2hLnTf1JjQYwzS" # Token Holder ATA
+[[test.validator.clone]]
+address = "9o7xhToWNcPJK4TyLFoVqN6ievfumuyi59o7xukzd6Lt" # Strategist ATA

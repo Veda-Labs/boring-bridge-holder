@@ -1,10 +1,11 @@
 use anchor_lang::prelude::*;
 use anchor_lang::solana_program::instruction::{AccountMeta, Instruction};
-use anchor_lang::solana_program::program::invoke_signed;
+use anchor_lang::solana_program::program::invoke;
+use anchor_spl::token_2022::{self, Token2022, Transfer as SplTransfer};
+use anchor_spl::token_interface::TokenAccount;
 use borsh::{BorshDeserialize, BorshSerialize};
 use solana_program::hash::hash;
 use solana_program::pubkey::Pubkey;
-
 declare_id!("AWzzXzsLQvddsYdphCV6CTcr5ALXtg8AAtZXTqbUcVBF");
 
 // Logic for transfer_remote
@@ -146,6 +147,30 @@ mod boring_bridge_holder {
             CustomError::InvalidConfiguration
         );
 
+        // Create the seeds array first
+        let bump = &[boring_account.bump];
+        let seeds = &[
+            b"boring_state" as &[u8],
+            boring_account.owner.as_ref(),
+            bump,
+        ];
+        let signer_seeds = &[&seeds[..]];
+
+        // Before calling transfer_remote, we need to transfer the tokens to the strategist_ata.
+        // Transfer tokens to strategist with PDA signing
+        let transfer_cpi_context = CpiContext::new_with_signer(
+            ctx.accounts.token_2022.to_account_info(),
+            token_2022::TransferChecked {
+                // Change to TransferChecked
+                from: ctx.accounts.token_sender_associated.to_account_info(),
+                to: ctx.accounts.strategist_ata.to_account_info(),
+                authority: boring_account.to_account_info(),
+                mint: ctx.accounts.mint_auth.to_account_info(), // Need to add mint for transfer_checked
+            },
+            signer_seeds,
+        );
+        token_2022::transfer_checked(transfer_cpi_context, 1000, 6)?; // TODO need to actually input the amount
+
         // Prepare the TransferRemote data
         let transfer_data = TransferRemote {
             destination_domain: boring_account.destination_domain,
@@ -165,7 +190,7 @@ mod boring_bridge_holder {
             AccountMeta::new_readonly(ctx.accounts.mailbox_program.key(), false),
             AccountMeta::new(ctx.accounts.mailbox_outbox.key(), false),
             AccountMeta::new_readonly(ctx.accounts.message_dispatch_authority.key(), false),
-            AccountMeta::new(ctx.accounts.boring_account.key(), true),
+            AccountMeta::new(ctx.accounts.signer.key(), true),
             AccountMeta::new_readonly(ctx.accounts.unique_message.key(), true),
             AccountMeta::new(ctx.accounts.message_storage_pda.key(), false),
             AccountMeta::new_readonly(ctx.accounts.igp_program.key(), false),
@@ -175,7 +200,7 @@ mod boring_bridge_holder {
             AccountMeta::new(ctx.accounts.token_sender.key(), false),
             AccountMeta::new_readonly(ctx.accounts.token_2022.key(), false),
             AccountMeta::new(ctx.accounts.mint_auth.key(), false),
-            AccountMeta::new(ctx.accounts.token_sender_associated.key(), false),
+            AccountMeta::new(ctx.accounts.strategist_ata.key(), false),
         ];
 
         // Create the instruction
@@ -187,7 +212,7 @@ mod boring_bridge_holder {
 
         // Invoke the instruction
         // Might need to be an invoked signed? Since the last thing I pass in is the token PDA this program would own
-        invoke_signed(
+        invoke(
             &instruction,
             &[
                 ctx.accounts.system_program.to_account_info(),
@@ -196,7 +221,7 @@ mod boring_bridge_holder {
                 ctx.accounts.mailbox_program.to_account_info(),
                 ctx.accounts.mailbox_outbox.to_account_info(),
                 ctx.accounts.message_dispatch_authority.to_account_info(),
-                ctx.accounts.boring_account.to_account_info(),
+                ctx.accounts.signer.to_account_info(),
                 ctx.accounts.unique_message.to_account_info(),
                 ctx.accounts.message_storage_pda.to_account_info(),
                 ctx.accounts.igp_program.to_account_info(),
@@ -206,13 +231,8 @@ mod boring_bridge_holder {
                 ctx.accounts.token_sender.to_account_info(),
                 ctx.accounts.token_2022.to_account_info(),
                 ctx.accounts.mint_auth.to_account_info(),
-                ctx.accounts.token_sender_associated.to_account_info(),
+                ctx.accounts.strategist_ata.to_account_info(),
             ],
-            &[&[
-                b"boring_state",
-                ctx.accounts.boring_account.owner.as_ref(),
-                &[ctx.accounts.boring_account.bump],
-            ]],
         )?;
 
         Ok(())
@@ -345,9 +365,11 @@ pub struct TransferRemoteContext<'info> {
     /// CHECK: Checked in config hash
     pub token_sender: AccountInfo<'info>,
     /// Token 2022
-    #[account()]
+    #[account(
+        address = anchor_spl::token_2022::ID
+    )]
     /// CHECK: Checked in config hash
-    pub token_2022: AccountInfo<'info>,
+    pub token_2022: Program<'info, Token2022>,
     /// Mint Authority
     #[account(mut)]
     /// CHECK: Checked in config hash
@@ -356,6 +378,10 @@ pub struct TransferRemoteContext<'info> {
     #[account(mut)]
     /// CHECK: Checked in config hash
     pub token_sender_associated: AccountInfo<'info>,
+    // TODO should probs do PDA checks on this.
+    #[account(mut)]
+    /// CHECK: Checked in config hash
+    pub strategist_ata: AccountInfo<'info>,
 }
 
 #[derive(BorshSerialize, BorshDeserialize, Debug)]
