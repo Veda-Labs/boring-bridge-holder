@@ -488,7 +488,6 @@ describe("boring-bridge-holder", () => {
   });
 
   it("Can transfer remote tokens", async () => {
-    console.log("Boring account:", boringAccount.toString());
     // 1. Create a unique message account for this transfer
     const uniqueMessage = anchor.web3.Keypair.generate();
 

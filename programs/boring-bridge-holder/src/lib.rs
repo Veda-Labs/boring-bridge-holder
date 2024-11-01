@@ -1,5 +1,3 @@
-use std::clone;
-
 use anchor_lang::prelude::*;
 use anchor_lang::solana_program::instruction::{AccountMeta, Instruction};
 use anchor_lang::solana_program::program::invoke;
@@ -394,6 +392,10 @@ pub struct TransferRemote {
     pub amount_or_id: [u8; 32], // U256, serialized as a byte array
 }
 
+// TODO decrease stack usage
+// TODO remove all warnings too.
+// TODO thinking about the below more, it is kinda nice to know for sure that the strategist address is something
+// which would prevent anyone from calling the function with other inputs. So maybe just add the PDA checks to the strategist ata?
 // TODO so I could technically add the decimals, strategist strategist ata, and evm recipient to this struct.
 // But then there would be no update strategist function which isn't terrible cuz it is less code.
 // TODO could rename token_sender_ata to something better like boring_account_ata.
