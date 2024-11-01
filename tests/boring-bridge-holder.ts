@@ -24,6 +24,7 @@ describe("boring-bridge-holder", () => {
 
   const owner = (program.provider as anchor.AnchorProvider).wallet
   // const strategist = anchor.web3.Keypair.generate();
+  // LMAO this is a private key please yoink the 1/10th of a penny in it if you want.
   const strategist = anchor.web3.Keypair.fromSecretKey(Uint8Array.from([
     // 64 bytes for a fixed private key
     174, 47, 154, 16, 202, 193, 206, 113, 199, 190, 53, 133, 169, 175, 31, 56, 
