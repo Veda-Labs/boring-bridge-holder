@@ -10,7 +10,18 @@ describe("boring-bridge-holder", () => {
 
   const program = anchor.workspace.BoringBridgeHolder as Program<BoringBridgeHolder>;
 
-  const holder = anchor.web3.Keypair.generate();
+  const ATA_PROGRAM_ID = new anchor.web3.PublicKey('ATokenGPvbdGVxr1b2hvZbsiqW5xWH25efTNsLJA8knL');
+  
+  let boringAccount: anchor.web3.PublicKey;
+  let boringAccountBump: number;
+  before(async () => {
+    // Find the boring account PDA
+    [boringAccount, boringAccountBump] = anchor.web3.PublicKey.findProgramAddressSync(
+      [Buffer.from("boring_state"), owner.publicKey.toBuffer()],
+    program.programId
+  );
+  });
+
   const owner = (program.provider as anchor.AnchorProvider).wallet
   const strategist = anchor.web3.Keypair.generate();
   let configParams = {
@@ -48,16 +59,16 @@ describe("boring-bridge-holder", () => {
         evm_target
       )
     .accounts({
-      boringAccount: holder.publicKey,
+      boringAccount: boringAccount,
       signer: owner.publicKey,
     })
-    .signers([holder])
+    .signers([])
     .rpc();
 
     // Confirm the transaction
     await anchor.AnchorProvider.env().connection.confirmTransaction(tx);
 
-    const holderAccount = await program.account.boringState.fetch(holder.publicKey);
+    const holderAccount = await program.account.boringState.fetch(boringAccount);
     // Make sure the owner is set
     expect(holderAccount.owner.equals(owner.publicKey)).to.be.true;
     // Make sure the strategist is set
@@ -75,7 +86,7 @@ describe("boring-bridge-holder", () => {
     const tx = await program.methods
       .transferOwnership(newOwner.publicKey)
     .accounts({
-      boringAccount: holder.publicKey,
+      boringAccount: boringAccount,
       signer: owner.publicKey,
     })
     .signers([])
@@ -84,7 +95,7 @@ describe("boring-bridge-holder", () => {
     // Confirm the transaction
     await anchor.AnchorProvider.env().connection.confirmTransaction(tx);
 
-    const holderAccount = await program.account.boringState.fetch(holder.publicKey);
+    const holderAccount = await program.account.boringState.fetch(boringAccount);
     // Make sure the owner is set
     expect(holderAccount.owner.equals(newOwner.publicKey)).to.be.true;
 
@@ -92,7 +103,7 @@ describe("boring-bridge-holder", () => {
     const tx2 = await program.methods
       .transferOwnership(owner.publicKey)
     .accounts({
-      boringAccount: holder.publicKey,
+      boringAccount: boringAccount,
       signer: newOwner.publicKey,
     })
     .signers([newOwner])
@@ -108,7 +119,7 @@ describe("boring-bridge-holder", () => {
     const tx = await program.methods
       .updateStrategist(newStrategist.publicKey)
     .accounts({
-      boringAccount: holder.publicKey,
+      boringAccount: boringAccount,
       signer: owner.publicKey,
     })
     .signers([])
@@ -117,7 +128,7 @@ describe("boring-bridge-holder", () => {
     // Confirm the transaction
     await anchor.AnchorProvider.env().connection.confirmTransaction(tx);
 
-    const holderAccount = await program.account.boringState.fetch(holder.publicKey);
+    const holderAccount = await program.account.boringState.fetch(boringAccount);
     // Make sure the strategist is set
     expect(holderAccount.strategist.equals(newStrategist.publicKey)).to.be.true;
 
@@ -125,7 +136,7 @@ describe("boring-bridge-holder", () => {
     const tx2 = await program.methods
       .updateStrategist(strategist.publicKey)
     .accounts({
-      boringAccount: holder.publicKey,
+      boringAccount: boringAccount,
       signer: owner.publicKey,
     })
     .signers([])
@@ -137,7 +148,7 @@ describe("boring-bridge-holder", () => {
 
   it("Can update configuration", async () => {
     // Record existing config hash
-    const existingConfigHash = (await program.account.boringState.fetch(holder.publicKey)).configHash;
+    const existingConfigHash = (await program.account.boringState.fetch(boringAccount)).configHash;
 
     // Alter existing config params.
     configParams.noop = new anchor.web3.PublicKey("4NJWKGTJuWWqhdsdnKZwskp2CQqLBtqaPkvm99du4Mpw");
@@ -146,7 +157,7 @@ describe("boring-bridge-holder", () => {
     const tx = await program.methods
       .updateConfiguration(configParams)
     .accounts({
-      boringAccount: holder.publicKey,
+      boringAccount: boringAccount,
       signer: owner.publicKey,
     })
     .signers([])
@@ -156,7 +167,7 @@ describe("boring-bridge-holder", () => {
     await anchor.AnchorProvider.env().connection.confirmTransaction(tx);
 
     // Fetch the updated configuration
-    const updatedConfigHash = (await program.account.boringState.fetch(holder.publicKey)).configHash;
+    const updatedConfigHash = (await program.account.boringState.fetch(boringAccount)).configHash;
     expect(updatedConfigHash).to.not.equal(existingConfigHash);
 
     // Update configuration back to the original config.
@@ -165,7 +176,7 @@ describe("boring-bridge-holder", () => {
     const tx2 = await program.methods
       .updateConfiguration(configParams)
     .accounts({
-      boringAccount: holder.publicKey,
+      boringAccount: boringAccount,
       signer: owner.publicKey,
     })
     .signers([])
@@ -175,7 +186,7 @@ describe("boring-bridge-holder", () => {
     await anchor.AnchorProvider.env().connection.confirmTransaction(tx2);
 
     // Fetch the updated configuration
-    const updatedConfigHash2 = (await program.account.boringState.fetch(holder.publicKey)).configHash;
+    const updatedConfigHash2 = (await program.account.boringState.fetch(boringAccount)).configHash;
     expect(updatedConfigHash2).to.deep.equal(existingConfigHash);
   });
 
@@ -184,7 +195,7 @@ describe("boring-bridge-holder", () => {
       await program.methods
         .initialize(owner.publicKey, strategist.publicKey, configParams, destinationDomain, evm_target)
       .accounts({
-        boringAccount: holder.publicKey,
+        boringAccount: boringAccount,
         signer: owner.publicKey,
       })
       .signers([holder])
@@ -204,7 +215,7 @@ describe("boring-bridge-holder", () => {
       await program.methods
         .transferOwnership(newOwner.publicKey)
         .accounts({
-          boringAccount: holder.publicKey,
+          boringAccount: boringAccount,
           signer: randomUser.publicKey,
         })
         .signers([randomUser])
@@ -223,7 +234,7 @@ describe("boring-bridge-holder", () => {
       await program.methods
         .updateStrategist(newStrategist.publicKey)
         .accounts({
-          boringAccount: holder.publicKey,
+          boringAccount: boringAccount,
           signer: randomUser.publicKey,
         })
         .signers([randomUser])
@@ -241,7 +252,7 @@ describe("boring-bridge-holder", () => {
       await program.methods
         .updateConfiguration(configParams)
         .accounts({
-          boringAccount: holder.publicKey,
+          boringAccount: boringAccount,
           signer: randomUser.publicKey,
         })
         .signers([randomUser])
@@ -289,7 +300,7 @@ describe("boring-bridge-holder", () => {
       await program.methods
         .transferRemote(amount)
         .accounts({
-          boringAccount: holder.publicKey,
+          boringAccount: boringAccount,
           signer: randomUser.publicKey,
           targetProgram: configParams.targetProgram,
           systemProgram: anchor.web3.SystemProgram.programId,
@@ -352,7 +363,7 @@ describe("boring-bridge-holder", () => {
       await program.methods
         .transferRemote(amount)
         .accounts({
-          boringAccount: holder.publicKey,
+          boringAccount: boringAccount,
           signer: strategist.publicKey,
           targetProgram: invalidTargetProgram, // Using different target program
           systemProgram: anchor.web3.SystemProgram.programId,
@@ -419,9 +430,6 @@ describe("boring-bridge-holder", () => {
   });
 
   it("Verifies token sender associated account derivation", async () => {
-    // Known values from your test transaction
-    const ATA_PROGRAM_ID = new anchor.web3.PublicKey('ATokenGPvbdGVxr1b2hvZbsiqW5xWH25efTNsLJA8knL');
-    
     // Please provide these values from your test transaction:
     const tokenSender = new anchor.web3.PublicKey("Hv4wFFTubQtULBCHR64H1CZ5KJezgH8GCiMr3PjtFyhJ");
     const mintAuth = new anchor.web3.PublicKey("AKEWE7Bgh87GPp171b4cJPSSZfmZwQ3KaqYqXoKLNAEE");
@@ -443,6 +451,113 @@ describe("boring-bridge-holder", () => {
     // Verify the derived ATA matches the expected address
     expect(derivedAta.equals(expectedAta)).to.be.true;
   });
+
+  it("Can transfer remote tokens", async () => {
+    // 1. Create a unique message account for this transfer
+    const uniqueMessage = anchor.web3.Keypair.generate();
+
+    // 2. Derive the PDAs we need
+    const [messageStoragePda] = anchor.web3.PublicKey.findProgramAddressSync(
+        [
+            Buffer.from("hyperlane"),
+            Buffer.from("-"),
+            Buffer.from("dispatched_message"),
+            Buffer.from("-"),
+            uniqueMessage.publicKey.toBuffer()
+        ],
+        configParams.mailboxProgram
+    );
+    
+    const [gasPaymentPda] = anchor.web3.PublicKey.findProgramAddressSync(
+        [
+            Buffer.from("hyperlane_igp"),
+            Buffer.from("-"),
+            Buffer.from("gas_payment"),
+            Buffer.from("-"),
+            uniqueMessage.publicKey.toBuffer()
+        ],
+        configParams.igpProgram
+    );
+
+    // 3. Get the holder's ATA
+    // Derive the ATA
+    const [holderAta] = anchor.web3.PublicKey.findProgramAddressSync(
+      [
+          boringAccount.toBuffer(),
+          configParams.token2022Program.toBuffer(),
+          configParams.mintAuth.toBuffer(),
+      ],
+      ATA_PROGRAM_ID
+  );
+
+    // 4. Create and fund the holder's ATA
+    // TODO: We need to figure out how to get tokens into this account
+    
+    // 5. Set up the transfer amount (as a 32-byte array)
+    const amount = new Array(32).fill(0);
+    // const value = BigInt(1000);
+
+    // // Convert to big-endian byte array
+    // const valueBuffer = Buffer.from(value.toString(16).padStart(64, '0'), 'hex');
+    // for (let i = 0; i < 32; i++) {
+    //     amount[i] = valueBuffer[i];
+    // }
+
+    // 6. Update configuartion with new holder associated token account.
+    configParams.tokenSenderAssociated = holderAta;
+    // Update configuration
+    const updateTx = await program.methods
+      .updateConfiguration(configParams)
+    .accounts({
+      boringAccount: boringAccount,
+      signer: owner.publicKey,
+    })
+    .signers([])
+    .rpc();
+  
+    // Confirm the transaction
+    await anchor.AnchorProvider.env().connection.confirmTransaction(updateTx);
+
+    console.log("Boring Account: ", boringAccount.toString());
+    console.log("Holder Account: ", holderAta.toString());
+
+    // 7. Execute the transfer
+    const tx = await program.methods
+        .transferRemote(amount)
+        .accounts({
+            boringAccount: boringAccount,
+            signer: strategist.publicKey,
+            targetProgram: configParams.targetProgram,
+            systemProgram: anchor.web3.SystemProgram.programId,
+            noop: configParams.noop,
+            tokenPda: configParams.tokenPda,
+            mailboxProgram: configParams.mailboxProgram,
+            mailboxOutbox: configParams.mailboxOutbox,
+            messageDispatchAuthority: configParams.messageDispatchAuthority,
+            uniqueMessage: uniqueMessage.publicKey,
+            messageStoragePda: messageStoragePda,
+            igpProgram: configParams.igpProgram,
+            igpProgramData: configParams.igpProgramData,
+            gasPaymentPda: gasPaymentPda,
+            igpAccount: configParams.igpAccount,
+            tokenSender: configParams.tokenSender,
+            token2022: configParams.token2022Program,
+            mintAuth: configParams.mintAuth,
+            tokenSenderAssociated: holderAta,
+        })
+        .signers([strategist, uniqueMessage])
+        .rpc();
+
+    // 8. Verify the transfer was successful
+    await anchor.AnchorProvider.env().connection.confirmTransaction(tx);
+
+
+    // 8. Add verification checks
+    // TODO: What should we verify after the transfer?
+    // - Check token balance changed?
+    // - Check message was stored?
+    // - Check gas payment was made?
+});
 
   // TODO now add in a test that "forks" mainnet by loading in the programs and accounts from eclipse that I need.
   // Then I am going to need to have to somehow edit my boringAccounts token account to give it some tokens, AND I will

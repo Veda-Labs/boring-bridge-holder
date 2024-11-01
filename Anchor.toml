@@ -16,3 +16,43 @@ wallet = "~/.config/solana/id.json"
 
 [scripts]
 test = "yarn run ts-mocha -p ./tsconfig.json -t 1000000 tests/**/*.ts"
+
+[test.validator]
+url = "https://eclipse.helius-rpc.com"
+
+# Core Programs
+[[test.validator.clone]]
+address = "TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb" # Token-2022 Program
+
+# Hyperlane Programs & Accounts
+[[test.validator.clone]]
+address = "EitxJuv2iBjsg2d7jVy2LDC1e2zBrx4GB5Y9h2Ko3A9Y" # Mailbox Program
+[[test.validator.clone]]
+address = "FKKDGYumoKjQjVEejff6MD1FpKuBs6SdgAobVdJdE21B" # Mailbox Outbox
+[[test.validator.clone]]
+address = "HncL4avgJq8uH2cGaAUf5rF2SS2ZLKH3MEyq97WFNmv6" # Message Dispatch Authority
+
+[[test.validator.clone]]
+address = "Hs7KVBU67nBnWhDPZkEFwWqrFMUfJbmY2DQ4gmCZfaZp" # IGP Program
+[[test.validator.clone]]
+address = "FvGvXJf6bd2wx8FxzsYNzd2uHaPy7JTkmuKiVvSTt7jm" # IGP Program Data
+[[test.validator.clone]]
+address = "3Wp4qKkgf4tjXz1soGyTSndCgBPLZFSrZkiDZ8Qp9EEj" # IGP Account
+
+# Target Program & Related Accounts
+[[test.validator.clone]]
+address = "EqRSt9aUDMKYKhzd1DGMderr3KNp29VZH3x5P7LFTC8m" # Target Program
+[[test.validator.clone]]
+address = "84KCVv2ERnDShUepu5kCufm2nB8vdHnCCuWx4qbDKSTB" # Token PDA
+
+# Token Related
+[[test.validator.clone]]
+address = "ABb3i11z7wKoGCfeRQNQbVYWjAm7jG7HzZnDLV4RKRbK" # Token Sender
+[[test.validator.clone]]
+address = "AKEWE7Bgh87GPp171b4cJPSSZfmZwQ3KaqYqXoKLNAEE" # Mint Authority
+
+# test accounts
+[[test.validator.clone]]
+address = "Hv4wFFTubQtULBCHR64H1CZ5KJezgH8GCiMr3PjtFyhJ" # Token Holder
+[[test.validator.clone]]
+address = "9gGcoGvNyPHsDbzaLspisVa48J6Hsj2hLnTf1JjQYwzS" # Token Holder ATA

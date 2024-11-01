@@ -1,6 +1,6 @@
 use anchor_lang::prelude::*;
 use anchor_lang::solana_program::instruction::{AccountMeta, Instruction};
-use anchor_lang::solana_program::program::invoke;
+use anchor_lang::solana_program::program::invoke_signed;
 use borsh::{BorshDeserialize, BorshSerialize};
 use solana_program::hash::hash;
 use solana_program::pubkey::Pubkey;
@@ -40,6 +40,7 @@ mod boring_bridge_holder {
         destination_domain: u32,
         evm_target: [u8; 32],
     ) -> Result<()> {
+        // TODO might need to add a check that makes sure signed is the owner, for the PDA logic to work.
         // Check if the account is already initialized
         let boring_account = &mut ctx.accounts.boring_account;
 
@@ -48,6 +49,7 @@ mod boring_bridge_holder {
         boring_account.config_hash = config.compute_hash();
         boring_account.destination_domain = destination_domain;
         boring_account.evm_target = evm_target;
+        boring_account.bump = ctx.bumps.boring_account;
 
         msg!("Set Owner to: {}!", owner); // Message will show up in the tx logs
         msg!("Set Strategist to: {}!", strategist); // Message will show up in the tx logs
@@ -107,6 +109,13 @@ mod boring_bridge_holder {
         ctx: Context<TransferRemoteContext>,
         amount_or_id: [u8; 32],
     ) -> Result<()> {
+        msg!("Boring Account: {}", ctx.accounts.boring_account.key());
+        msg!("Unique Message: {}", ctx.accounts.unique_message.key());
+        msg!(
+            "Message Storage PDA: {}",
+            ctx.accounts.message_storage_pda.key()
+        );
+        msg!("Gas Payment PDA: {}", ctx.accounts.gas_payment_pda.key());
         let boring_account = &mut ctx.accounts.boring_account;
         // Verify strategist
         require_keys_eq!(
@@ -178,7 +187,7 @@ mod boring_bridge_holder {
 
         // Invoke the instruction
         // Might need to be an invoked signed? Since the last thing I pass in is the token PDA this program would own
-        invoke(
+        invoke_signed(
             &instruction,
             &[
                 ctx.accounts.system_program.to_account_info(),
@@ -199,6 +208,11 @@ mod boring_bridge_holder {
                 ctx.accounts.mint_auth.to_account_info(),
                 ctx.accounts.token_sender_associated.to_account_info(),
             ],
+            &[&[
+                b"boring_state",
+                ctx.accounts.boring_account.owner.as_ref(),
+                &[ctx.accounts.boring_account.bump],
+            ]],
         )?;
 
         Ok(())
@@ -207,7 +221,13 @@ mod boring_bridge_holder {
 
 #[derive(Accounts)]
 pub struct Initialize<'info> {
-    #[account(init, payer = signer, space = 8 + 32 + 32 + 32 + 4 + 32)]
+    #[account(
+        init,
+        payer = signer,
+        space = 8 + 32 + 32 + 32 + 4 + 32 + 1,
+        seeds = [b"boring_state", signer.key().as_ref()],
+        bump
+    )]
     pub boring_account: Account<'info, BoringState>,
     #[account(mut)]
     pub signer: Signer<'info>,
@@ -240,7 +260,11 @@ pub struct UpdateConfiguration<'info> {
 
 #[derive(Accounts)]
 pub struct TransferRemoteContext<'info> {
-    #[account(mut)]
+    #[account(
+        mut,
+        seeds = [b"boring_state", boring_account.owner.as_ref()],
+        bump = boring_account.bump,
+    )]
     pub boring_account: Account<'info, BoringState>,
     #[account(mut)] // might not be needed
     pub signer: Signer<'info>,
@@ -263,7 +287,7 @@ pub struct TransferRemoteContext<'info> {
     /// CHECK: Checked in config hash
     pub mailbox_program: AccountInfo<'info>,
     /// Mailbox Outbox
-    #[account()]
+    #[account(mut)]
     /// CHECK: Checked in config hash
     pub mailbox_outbox: AccountInfo<'info>,
     /// Message Dispatch Authority
@@ -271,7 +295,7 @@ pub struct TransferRemoteContext<'info> {
     /// CHECK: Checked in config hash
     pub message_dispatch_authority: AccountInfo<'info>,
     /// Unique message / gas payment account
-    #[account(mut, signer)]
+    #[account(signer)]
     /// CHECK: This is the gas payment account
     pub unique_message: AccountInfo<'info>,
     /// Message storage PDA
@@ -294,7 +318,7 @@ pub struct TransferRemoteContext<'info> {
     /// CHECK: Checked in config hash
     pub igp_program: AccountInfo<'info>,
     /// IGP Program Data
-    #[account()]
+    #[account(mut)]
     /// CHECK: Checked in config hash
     pub igp_program_data: AccountInfo<'info>,
     /// Gas payment PDA
@@ -317,7 +341,7 @@ pub struct TransferRemoteContext<'info> {
     /// CHECK: Checked in config hash
     pub igp_account: AccountInfo<'info>,
     /// Token Sender
-    #[account()]
+    #[account(mut)]
     /// CHECK: Checked in config hash
     pub token_sender: AccountInfo<'info>,
     /// Token 2022
@@ -325,7 +349,7 @@ pub struct TransferRemoteContext<'info> {
     /// CHECK: Checked in config hash
     pub token_2022: AccountInfo<'info>,
     /// Mint Authority
-    #[account()]
+    #[account(mut)]
     /// CHECK: Checked in config hash
     pub mint_auth: AccountInfo<'info>,
     /// Token Sender Associated Account
@@ -374,6 +398,7 @@ pub struct BoringState {
     config_hash: [u8; 32],
     destination_domain: u32,
     evm_target: [u8; 32],
+    bump: u8,
 }
 
 // Errors
