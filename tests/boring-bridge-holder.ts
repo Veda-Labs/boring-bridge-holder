@@ -279,8 +279,20 @@ describe("boring-bridge-holder", () => {
   });
 
   it("Only strategist can transfer remote", async () => {
-    // Create random user that tries to call transfer remote.
-    const randomUser = anchor.web3.Keypair.generate();
+    // Change the strategist.
+    const newStrategist = anchor.web3.Keypair.generate();
+
+    const tx = await program.methods
+      .updateStrategist(newStrategist.publicKey)
+    .accounts({
+      boringAccount: boringAccount,
+      signer: owner.publicKey,
+    })
+    .signers([])
+    .rpc();
+
+    // Confirm the transaction
+    await anchor.AnchorProvider.env().connection.confirmTransaction(tx);
 
     // This should be a random key pair.
     const uniqueMessage = anchor.web3.Keypair.generate();
@@ -319,13 +331,13 @@ describe("boring-bridge-holder", () => {
 
     const amount = new anchor.BN(1000);
 
-    // Should fail when called by random user
+    // Should fail when called by old strategist
     try {
       await program.methods
         .transferRemote(amount)
         .accounts({
           boringAccount: boringAccount,
-          signer: randomUser.publicKey,
+          signer: strategist.publicKey,
           targetProgram: configParams.targetProgram,
           systemProgram: anchor.web3.SystemProgram.programId,
           noop: configParams.noop,
@@ -345,12 +357,25 @@ describe("boring-bridge-holder", () => {
           tokenSenderAssociated: configParams.tokenSenderAssociated,
           strategistAta: strategistAta,
         })
-        .signers([randomUser, uniqueMessage])
+        .signers([strategist, uniqueMessage])
         .rpc();
       expect.fail("Should have thrown error");
     } catch (e) {
       expect(e.toString()).to.include("Unauthorized");
     }
+
+    // Update strategist back to old one.
+    const tx0 = await program.methods
+      .updateStrategist(strategist.publicKey)
+      .accounts({
+          boringAccount: boringAccount,
+          signer: owner.publicKey,
+        })
+        .signers([])
+        .rpc();
+    
+    // Confirm the transaction
+    await anchor.AnchorProvider.env().connection.confirmTransaction(tx0);
   });
 
   it("Strategist cannot transfer remote with invalid config", async () => {
@@ -488,6 +513,7 @@ describe("boring-bridge-holder", () => {
   });
 
   it("Can transfer remote tokens", async () => {
+
     // 1. Create a unique message account for this transfer
     const uniqueMessage = anchor.web3.Keypair.generate();
 

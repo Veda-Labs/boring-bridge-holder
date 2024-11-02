@@ -2,6 +2,11 @@ use anchor_lang::prelude::*;
 use anchor_lang::solana_program::instruction::{AccountMeta, Instruction};
 use anchor_lang::solana_program::program::invoke;
 use anchor_spl::token_2022::{self, Token2022};
+use anchor_spl::token_interface::TokenAccount;
+// use anchor_spl::{
+//     associated_token::AssociatedToken,
+//     token::{self, Mint, MintTo, Token, TokenAccount, Transfer},
+// };
 use borsh::{BorshDeserialize, BorshSerialize};
 use solana_program::hash::hash;
 use solana_program::pubkey::Pubkey;
@@ -281,6 +286,7 @@ pub struct UpdateConfiguration<'info> {
 
 #[derive(Accounts)]
 pub struct TransferRemoteContext<'info> {
+    // TODO this owner account can change which would bork this PDA, so lets change that to mayeb base it off the sender, then store sender in the state.
     #[account(
         mut,
         seeds = [b"boring_state", boring_account.owner.as_ref()],
@@ -376,13 +382,18 @@ pub struct TransferRemoteContext<'info> {
     /// CHECK: Checked in config hash
     pub mint_auth: AccountInfo<'info>,
     /// Token Sender Associated Account
+    // TODO PDA checks
     #[account(mut)]
     /// CHECK: Checked in config hash
     pub token_sender_associated: AccountInfo<'info>,
-    // TODO should probs do PDA checks on this.
-    #[account(mut)]
+    #[account(
+        mut,
+        associated_token::mint = mint_auth,
+        associated_token::authority = signer,
+        associated_token::token_program = token_2022
+    )]
     /// CHECK: Checked in config hash
-    pub strategist_ata: AccountInfo<'info>,
+    pub strategist_ata: InterfaceAccount<'info, TokenAccount>,
 }
 
 #[derive(BorshSerialize, BorshDeserialize, Debug, Clone)]
@@ -392,6 +403,7 @@ pub struct TransferRemote {
     pub amount_or_id: [u8; 32], // U256, serialized as a byte array
 }
 
+// TODO change signer in context to be strategist
 // TODO decrease stack usage
 // TODO remove all warnings too.
 // TODO thinking about the below more, it is kinda nice to know for sure that the strategist address is something
