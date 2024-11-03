@@ -6,55 +6,65 @@ import { ComputeBudgetProgram } from "@solana/web3.js";
 // The signers array will automatically have the provider's wallet added to it.(which is the owner)
 describe("boring-bridge-holder", () => {
   // Configure the client to use the local cluster.
-  anchor.setProvider(anchor.AnchorProvider.env());
+  const provider = anchor.AnchorProvider.env();
+  anchor.setProvider(provider);
 
   const program = anchor.workspace.BoringBridgeHolder as Program<BoringBridgeHolder>;
-
+  // const owner = (program.provider as anchor.AnchorProvider).wallet;
+  const owner = provider.wallet;
   const ATA_PROGRAM_ID = new anchor.web3.PublicKey('ATokenGPvbdGVxr1b2hvZbsiqW5xWH25efTNsLJA8knL');
-  
-  let boringAccount: anchor.web3.PublicKey;
-  let boringAccountBump: number;
-  before(async () => {
-    // Find the boring account PDA
-    [boringAccount, boringAccountBump] = anchor.web3.PublicKey.findProgramAddressSync(
-      [Buffer.from("boring_state"), owner.publicKey.toBuffer()],
-    program.programId
-  );
-  });
-
-  const owner = (program.provider as anchor.AnchorProvider).wallet
-  // const strategist = anchor.web3.Keypair.generate();
-  // LMAO this is a private key please yoink the 1/10th of a penny in it if you want.
   const strategist = anchor.web3.Keypair.fromSecretKey(Uint8Array.from([
     // 64 bytes for a fixed private key
     174, 47, 154, 16, 202, 193, 206, 113, 199, 190, 53, 133, 169, 175, 31, 56, 
     222, 53, 138, 189, 224, 216, 117, 173, 10, 149, 53, 45, 73, 251, 237, 246, 
     15, 185, 186, 82, 177, 240, 148, 69, 241, 227, 167, 80, 141, 89, 240, 121,
     121, 35, 172, 247, 68, 251, 226, 218, 48, 63, 176, 109, 168, 89, 238, 135,
-]));
-
-  let configParams = {
-    targetProgram: new anchor.web3.PublicKey("EqRSt9aUDMKYKhzd1DGMderr3KNp29VZH3x5P7LFTC8m"),
-    noop: new anchor.web3.PublicKey("noopb9bkMVfRPU8AsbpTUg8AQkHtKwMYZiFUjNRtMmV"),
-    tokenPda: new anchor.web3.PublicKey("84KCVv2ERnDShUepu5kCufm2nB8vdHnCCuWx4qbDKSTB"),
-    mailboxProgram: new anchor.web3.PublicKey("EitxJuv2iBjsg2d7jVy2LDC1e2zBrx4GB5Y9h2Ko3A9Y"),
-    mailboxOutbox: new anchor.web3.PublicKey("FKKDGYumoKjQjVEejff6MD1FpKuBs6SdgAobVdJdE21B"),
-    messageDispatchAuthority: new anchor.web3.PublicKey("HncL4avgJq8uH2cGaAUf5rF2SS2ZLKH3MEyq97WFNmv6"),
-    igpProgram: new anchor.web3.PublicKey("Hs7KVBU67nBnWhDPZkEFwWqrFMUfJbmY2DQ4gmCZfaZp"),
-    igpProgramData: new anchor.web3.PublicKey("FvGvXJf6bd2wx8FxzsYNzd2uHaPy7JTkmuKiVvSTt7jm"),
-    igpAccount: new anchor.web3.PublicKey("3Wp4qKkgf4tjXz1soGyTSndCgBPLZFSrZkiDZ8Qp9EEj"),
-    tokenSender: new anchor.web3.PublicKey("ABb3i11z7wKoGCfeRQNQbVYWjAm7jG7HzZnDLV4RKRbK"),
-    token2022Program: new anchor.web3.PublicKey("TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb"),
-    mintAuth: new anchor.web3.PublicKey("AKEWE7Bgh87GPp171b4cJPSSZfmZwQ3KaqYqXoKLNAEE"),
-    tokenSenderAssociated: new anchor.web3.PublicKey("4NJWKGTJuWWqhdsdnKZwskp2CQqLBtqaPkvm99du4Mpw"),
-  }
-  const destinationDomain = 1;
+  ]));
+  
+  // Bridging configuration.
+  const destinationDomain = new anchor.BN(1);
   const evmAddressHex = "0x0463E60C7cE10e57911AB7bD1667eaa21de3e79b".slice(2); // remove '0x' prefix
-  const evm_target = Buffer.concat([
+  const evmRecipient = Buffer.concat([
       Buffer.alloc(12, 0), // 12 zero bytes
       Buffer.from(evmAddressHex, 'hex') // 20 bytes of address
   ]);
-  const decimals = 6;
+  const decimals = new anchor.BN(6);
+
+    // Initialize configParams
+    let configParams = {
+      targetProgram: new anchor.web3.PublicKey("EqRSt9aUDMKYKhzd1DGMderr3KNp29VZH3x5P7LFTC8m"),
+      noop: new anchor.web3.PublicKey("noopb9bkMVfRPU8AsbpTUg8AQkHtKwMYZiFUjNRtMmV"),
+      tokenPda: new anchor.web3.PublicKey("84KCVv2ERnDShUepu5kCufm2nB8vdHnCCuWx4qbDKSTB"),
+      mailboxProgram: new anchor.web3.PublicKey("EitxJuv2iBjsg2d7jVy2LDC1e2zBrx4GB5Y9h2Ko3A9Y"),
+      mailboxOutbox: new anchor.web3.PublicKey("FKKDGYumoKjQjVEejff6MD1FpKuBs6SdgAobVdJdE21B"),
+      messageDispatchAuthority: new anchor.web3.PublicKey("HncL4avgJq8uH2cGaAUf5rF2SS2ZLKH3MEyq97WFNmv6"),
+      igpProgram: new anchor.web3.PublicKey("Hs7KVBU67nBnWhDPZkEFwWqrFMUfJbmY2DQ4gmCZfaZp"),
+      igpProgramData: new anchor.web3.PublicKey("FvGvXJf6bd2wx8FxzsYNzd2uHaPy7JTkmuKiVvSTt7jm"),
+      igpAccount: new anchor.web3.PublicKey("3Wp4qKkgf4tjXz1soGyTSndCgBPLZFSrZkiDZ8Qp9EEj"),
+      tokenSender: new anchor.web3.PublicKey("ABb3i11z7wKoGCfeRQNQbVYWjAm7jG7HzZnDLV4RKRbK"),
+      token2022Program: new anchor.web3.PublicKey("TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb"),
+      mintAuth: new anchor.web3.PublicKey("AKEWE7Bgh87GPp171b4cJPSSZfmZwQ3KaqYqXoKLNAEE"),
+      destinationDomain: destinationDomain,
+      evmRecipient: evmRecipient,
+      decimals: decimals,
+    }
+    // Find the boring account PDA
+    const [boringAccount] = anchor.web3.PublicKey.findProgramAddressSync(
+      [
+        Buffer.from("boring_state"),
+        owner.publicKey.toBuffer()
+      ],
+      program.programId
+    );
+
+    const [boringAccountAta] = anchor.web3.PublicKey.findProgramAddressSync(
+      [
+        boringAccount.toBuffer(),
+        configParams.token2022Program.toBuffer(),
+        configParams.mintAuth.toBuffer(),
+      ],
+      ATA_PROGRAM_ID
+    );
 
   // token sender associated is wrong it would really be a a PDA using the holder account.
 
@@ -69,9 +79,6 @@ describe("boring-bridge-holder", () => {
         owner.publicKey,
         strategist.publicKey,
         configParams,
-        destinationDomain,
-        evm_target,
-        decimals
       )
     .accounts({
       boringAccount: boringAccount,
@@ -88,10 +95,6 @@ describe("boring-bridge-holder", () => {
     expect(holderAccount.owner.equals(owner.publicKey)).to.be.true;
     // Make sure the strategist is set
     expect(holderAccount.strategist.equals(strategist.publicKey)).to.be.true;
-    // Make sure the destination domain is set
-    expect(holderAccount.destinationDomain).to.equal(destinationDomain);
-    // Make sure the evm target is set
-    expect([...holderAccount.evmTarget]).to.deep.equal([...evm_target]);
     // TODO check that config params is set.
   });
 
@@ -208,7 +211,7 @@ describe("boring-bridge-holder", () => {
   it("Cannot re initialize", async () => {
     try {
       await program.methods
-        .initialize(owner.publicKey, strategist.publicKey, configParams, destinationDomain, evm_target, decimals)
+        .initialize(owner.publicKey, strategist.publicKey, configParams)
       .accounts({
         boringAccount: boringAccount,
         creator: owner.publicKey,
@@ -334,10 +337,10 @@ describe("boring-bridge-holder", () => {
     // Should fail when called by old strategist
     try {
       await program.methods
-        .transferRemote(amount)
+        .transferRemote(destinationDomain, evmRecipient, decimals, amount)
         .accounts({
           boringAccount: boringAccount,
-          signer: strategist.publicKey,
+          strategist: strategist.publicKey,
           targetProgram: configParams.targetProgram,
           systemProgram: anchor.web3.SystemProgram.programId,
           noop: configParams.noop,
@@ -354,7 +357,7 @@ describe("boring-bridge-holder", () => {
           tokenSender: configParams.tokenSender,
           token2022: configParams.token2022Program,
           mintAuth: configParams.mintAuth,
-          tokenSenderAssociated: configParams.tokenSenderAssociated,
+          boringAccountAta: boringAccountAta,
           strategistAta: strategistAta,
         })
         .signers([strategist, uniqueMessage])
@@ -420,10 +423,10 @@ describe("boring-bridge-holder", () => {
 
     try {
       await program.methods
-        .transferRemote(amount)
+        .transferRemote(destinationDomain, evmRecipient, decimals, amount)
         .accounts({
           boringAccount: boringAccount,
-          signer: strategist.publicKey,
+          strategist: strategist.publicKey,
           targetProgram: invalidTargetProgram, // Using different target program
           systemProgram: anchor.web3.SystemProgram.programId,
           noop: configParams.noop,
@@ -440,7 +443,7 @@ describe("boring-bridge-holder", () => {
           tokenSender: configParams.tokenSender,
           token2022: configParams.token2022Program,
           mintAuth: configParams.mintAuth,
-          tokenSenderAssociated: configParams.tokenSenderAssociated,
+          boringAccountAta: boringAccountAta,
           strategistAta: strategistAta,
         })
         .signers([strategist, uniqueMessage])
@@ -540,17 +543,6 @@ describe("boring-bridge-holder", () => {
         configParams.igpProgram
     );
 
-    // 3. Get the holder's ATA
-    // Derive the ATA
-    const [holderAta] = anchor.web3.PublicKey.findProgramAddressSync(
-      [
-          boringAccount.toBuffer(),
-          configParams.token2022Program.toBuffer(),
-          configParams.mintAuth.toBuffer(),
-      ],
-      ATA_PROGRAM_ID
-    );
-
     const [strategistAta] = anchor.web3.PublicKey.findProgramAddressSync(
       [
         strategist.publicKey.toBuffer(),
@@ -560,36 +552,23 @@ describe("boring-bridge-holder", () => {
       ATA_PROGRAM_ID
     );
 
-    await anchor.AnchorProvider.env().connection.requestAirdrop(
+    const airdropTx =await anchor.AnchorProvider.env().connection.requestAirdrop(
       strategist.publicKey,
       2 * anchor.web3.LAMPORTS_PER_SOL
     );
+
+    await anchor.AnchorProvider.env().connection.confirmTransaction(airdropTx);
 
     // 5. Set up the transfer amount (as a 32-byte array)
     const amount = new anchor.BN(11000);
     // const value = BigInt(1000);
 
-    // 6. Update configuartion with new holder associated token account.
-    configParams.tokenSenderAssociated = holderAta;
-    // Update configuration
-    const updateTx = await program.methods
-      .updateConfiguration(configParams)
-    .accounts({
-      boringAccount: boringAccount,
-      signer: owner.publicKey,
-    })
-    .signers([])
-    .rpc();
-  
-    // Confirm the transaction
-    await anchor.AnchorProvider.env().connection.confirmTransaction(updateTx);
-
     // 7. Execute the transfer
     const tx = await program.methods
-        .transferRemote(amount)
+        .transferRemote(destinationDomain, evmRecipient, decimals, amount)
         .accounts({
             boringAccount: boringAccount,
-            signer: strategist.publicKey,
+            strategist: strategist.publicKey,
             targetProgram: configParams.targetProgram,
             systemProgram: anchor.web3.SystemProgram.programId,
             noop: configParams.noop,
@@ -606,7 +585,7 @@ describe("boring-bridge-holder", () => {
             tokenSender: configParams.tokenSender,
             token2022: configParams.token2022Program,
             mintAuth: configParams.mintAuth,
-            tokenSenderAssociated: holderAta,
+            boringAccountAta: boringAccountAta,
             strategistAta: strategistAta,
         })
         .signers([strategist, uniqueMessage])

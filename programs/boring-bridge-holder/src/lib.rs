@@ -3,6 +3,7 @@ use anchor_lang::solana_program::instruction::{AccountMeta, Instruction};
 use anchor_lang::solana_program::program::invoke;
 use anchor_spl::token_2022::{self, Token2022};
 use anchor_spl::token_interface::TokenAccount;
+
 // use anchor_spl::{
 //     associated_token::AssociatedToken,
 //     token::{self, Mint, MintTo, Token, TokenAccount, Transfer},
@@ -42,22 +43,14 @@ mod boring_bridge_holder {
         owner: Pubkey,
         strategist: Pubkey,
         config: ConfigurationData,
-        destination_domain: u32,
-        evm_target: [u8; 32],
-        decimals: u8,
     ) -> Result<()> {
-        // TODO might need to add a check that makes sure signed is the owner, for the PDA logic to work.
-        // Check if the account is already initialized
         let boring_account = &mut ctx.accounts.boring_account;
 
         boring_account.creator = ctx.accounts.creator.key();
         boring_account.owner = owner;
         boring_account.strategist = strategist;
         boring_account.config_hash = config.compute_hash();
-        boring_account.destination_domain = destination_domain;
-        boring_account.evm_target = evm_target;
         boring_account.bump = ctx.bumps.boring_account;
-        boring_account.decimals = decimals;
 
         msg!("Set Owner to: {}!", owner); // Message will show up in the tx logs
         msg!("Set Strategist to: {}!", strategist); // Message will show up in the tx logs
@@ -113,19 +106,17 @@ mod boring_bridge_holder {
         Ok(())
     }
 
-    // TODO need to handle the amount input, I am thinking we just take a u64, then convert it into a 32 byte array.
-    pub fn transfer_remote(ctx: Context<TransferRemoteContext>, amount: u64) -> Result<()> {
-        msg!("Boring Account: {}", ctx.accounts.boring_account.key());
-        msg!("Unique Message: {}", ctx.accounts.unique_message.key());
-        msg!(
-            "Message Storage PDA: {}",
-            ctx.accounts.message_storage_pda.key()
-        );
-        msg!("Gas Payment PDA: {}", ctx.accounts.gas_payment_pda.key());
+    pub fn transfer_remote(
+        ctx: Context<TransferRemoteContext>,
+        destination_domain: u32,
+        evm_recipient: [u8; 32],
+        decimals: u8,
+        amount: u64,
+    ) -> Result<()> {
         let boring_account = &mut ctx.accounts.boring_account;
         // Verify strategist
         require_keys_eq!(
-            ctx.accounts.signer.key(),
+            ctx.accounts.strategist.key(),
             boring_account.strategist,
             CustomError::Unauthorized
         );
@@ -144,7 +135,9 @@ mod boring_bridge_holder {
             token_sender: ctx.accounts.token_sender.key(),
             token_2022_program: ctx.accounts.token_2022.key(),
             mint_auth: ctx.accounts.mint_auth.key(),
-            token_sender_associated: ctx.accounts.token_sender_associated.key(),
+            destination_domain: destination_domain,
+            evm_recipient: evm_recipient,
+            decimals: decimals,
         };
 
         require!(
@@ -167,21 +160,21 @@ mod boring_bridge_holder {
             ctx.accounts.token_2022.to_account_info(),
             token_2022::TransferChecked {
                 // Change to TransferChecked
-                from: ctx.accounts.token_sender_associated.to_account_info(),
+                from: ctx.accounts.boring_account_ata.to_account_info(),
                 to: ctx.accounts.strategist_ata.to_account_info(),
                 authority: boring_account.to_account_info(),
                 mint: ctx.accounts.mint_auth.to_account_info(), // Need to add mint for transfer_checked
             },
             signer_seeds,
         );
-        token_2022::transfer_checked(transfer_cpi_context, amount, boring_account.decimals)?;
+        token_2022::transfer_checked(transfer_cpi_context, amount, decimals)?;
 
         let mut amount_or_id = [0u8; 32];
         amount_or_id[..8].copy_from_slice(&amount.to_le_bytes());
         // Prepare the TransferRemote data
         let transfer_data = TransferRemote {
-            destination_domain: boring_account.destination_domain,
-            recipient: boring_account.evm_target,
+            destination_domain: destination_domain,
+            recipient: evm_recipient,
             amount_or_id: amount_or_id,
         };
 
@@ -197,7 +190,7 @@ mod boring_bridge_holder {
             AccountMeta::new_readonly(ctx.accounts.mailbox_program.key(), false),
             AccountMeta::new(ctx.accounts.mailbox_outbox.key(), false),
             AccountMeta::new_readonly(ctx.accounts.message_dispatch_authority.key(), false),
-            AccountMeta::new(ctx.accounts.signer.key(), true),
+            AccountMeta::new(ctx.accounts.strategist.key(), true),
             AccountMeta::new_readonly(ctx.accounts.unique_message.key(), true),
             AccountMeta::new(ctx.accounts.message_storage_pda.key(), false),
             AccountMeta::new_readonly(ctx.accounts.igp_program.key(), false),
@@ -218,7 +211,6 @@ mod boring_bridge_holder {
         };
 
         // Invoke the instruction
-        // Might need to be an invoked signed? Since the last thing I pass in is the token PDA this program would own
         invoke(
             &instruction,
             &[
@@ -228,7 +220,7 @@ mod boring_bridge_holder {
                 ctx.accounts.mailbox_program.to_account_info(),
                 ctx.accounts.mailbox_outbox.to_account_info(),
                 ctx.accounts.message_dispatch_authority.to_account_info(),
-                ctx.accounts.signer.to_account_info(),
+                ctx.accounts.strategist.to_account_info(),
                 ctx.accounts.unique_message.to_account_info(),
                 ctx.accounts.message_storage_pda.to_account_info(),
                 ctx.accounts.igp_program.to_account_info(),
@@ -251,7 +243,7 @@ pub struct Initialize<'info> {
     #[account(
         init,
         payer = creator,
-        space = 8 + 32 + 32 + 32 + 32 + 4 + 32 + 1 + 1,
+        space = 8 + 32 + 32 + 32 + 32 + 1,
         seeds = [b"boring_state", creator.key().as_ref()],
         bump
     )]
@@ -294,7 +286,7 @@ pub struct TransferRemoteContext<'info> {
     )]
     pub boring_account: Account<'info, BoringState>,
     #[account(mut)] // might not be needed
-    pub signer: Signer<'info>,
+    pub strategist: Signer<'info>,
     /// Taret program
     #[account()]
     /// CHECK: Checked in config hash
@@ -381,15 +373,20 @@ pub struct TransferRemoteContext<'info> {
     #[account(mut)]
     /// CHECK: Checked in config hash
     pub mint_auth: AccountInfo<'info>,
-    /// Token Sender Associated Account
-    // TODO PDA checks
-    #[account(mut)]
-    /// CHECK: Checked in config hash
-    pub token_sender_associated: AccountInfo<'info>,
+    /// Boring Account Associated Token Account
     #[account(
         mut,
         associated_token::mint = mint_auth,
-        associated_token::authority = signer,
+        associated_token::authority = boring_account,
+        associated_token::token_program = token_2022
+    )]
+    /// CHECK: Checked in config hash
+    pub boring_account_ata: InterfaceAccount<'info, TokenAccount>,
+    /// Strategist Associated Token Account
+    #[account(
+        mut,
+        associated_token::mint = mint_auth,
+        associated_token::authority = strategist,
         associated_token::token_program = token_2022
     )]
     /// CHECK: Checked in config hash
@@ -426,7 +423,9 @@ pub struct ConfigurationData {
     token_sender: Pubkey,
     token_2022_program: Pubkey,
     mint_auth: Pubkey,
-    token_sender_associated: Pubkey,
+    destination_domain: u32,
+    evm_recipient: [u8; 32],
+    decimals: u8,
 }
 
 impl ConfigurationData {
@@ -443,10 +442,7 @@ pub struct BoringState {
     owner: Pubkey,
     strategist: Pubkey,
     config_hash: [u8; 32],
-    destination_domain: u32,
-    evm_target: [u8; 32],
     bump: u8,
-    decimals: u8,
 }
 
 // Errors
