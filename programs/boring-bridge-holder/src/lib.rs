@@ -50,6 +50,7 @@ mod boring_bridge_holder {
         // Check if the account is already initialized
         let boring_account = &mut ctx.accounts.boring_account;
 
+        boring_account.creator = ctx.accounts.creator.key();
         boring_account.owner = owner;
         boring_account.strategist = strategist;
         boring_account.config_hash = config.compute_hash();
@@ -249,14 +250,14 @@ mod boring_bridge_holder {
 pub struct Initialize<'info> {
     #[account(
         init,
-        payer = signer,
-        space = 8 + 32 + 32 + 32 + 4 + 32 + 1 + 1,
-        seeds = [b"boring_state", signer.key().as_ref()],
+        payer = creator,
+        space = 8 + 32 + 32 + 32 + 32 + 4 + 32 + 1 + 1,
+        seeds = [b"boring_state", creator.key().as_ref()],
         bump
     )]
     pub boring_account: Account<'info, BoringState>,
     #[account(mut)]
-    pub signer: Signer<'info>,
+    pub creator: Signer<'info>,
     pub system_program: Program<'info, System>, // Only needed when creating or initializing an account.
 }
 
@@ -286,10 +287,9 @@ pub struct UpdateConfiguration<'info> {
 
 #[derive(Accounts)]
 pub struct TransferRemoteContext<'info> {
-    // TODO this owner account can change which would bork this PDA, so lets change that to mayeb base it off the sender, then store sender in the state.
     #[account(
         mut,
-        seeds = [b"boring_state", boring_account.owner.as_ref()],
+        seeds = [b"boring_state", boring_account.creator.as_ref()],
         bump = boring_account.bump,
     )]
     pub boring_account: Account<'info, BoringState>,
@@ -439,6 +439,7 @@ impl ConfigurationData {
 
 #[account]
 pub struct BoringState {
+    creator: Pubkey,
     owner: Pubkey,
     strategist: Pubkey,
     config_hash: [u8; 32],

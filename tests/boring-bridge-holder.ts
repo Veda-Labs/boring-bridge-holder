@@ -75,7 +75,7 @@ describe("boring-bridge-holder", () => {
       )
     .accounts({
       boringAccount: boringAccount,
-      signer: owner.publicKey,
+      creator: owner.publicKey,
     })
     .signers([])
     .rpc();
@@ -211,7 +211,7 @@ describe("boring-bridge-holder", () => {
         .initialize(owner.publicKey, strategist.publicKey, configParams, destinationDomain, evm_target, decimals)
       .accounts({
         boringAccount: boringAccount,
-        signer: owner.publicKey,
+        creator: owner.publicKey,
       })
       .signers([])
       .rpc();
