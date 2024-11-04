@@ -1,9 +1,9 @@
 import { BoringBridgeHolder } from "../target/types/boring_bridge_holder";
 import { Program } from "@coral-xyz/anchor";
-import * as fs from 'fs';
-import os from 'os';
-import path from 'path';
+import { ComputeBudgetProgram } from "@solana/web3.js";
 
+//To run this do this
+// ts-node scripts/transfer_remote.ts
 const anchor = require("@coral-xyz/anchor");
 const provider = anchor.AnchorProvider.env();
 // module.exports = async function (provider) {
@@ -59,26 +59,85 @@ const provider = anchor.AnchorProvider.env();
       program.programId
     );
 
-    console.log("Boring account: ", boringAccount);
-    const keypairPath = path.join(os.homedir(), '.config', 'solana', 'id.json');
-    const keypair = anchor.web3.Keypair.fromSecretKey(
-      new Uint8Array(JSON.parse(fs.readFileSync(keypairPath, 'utf-8')))
+    const uniqueMessage = anchor.web3.Keypair.generate();
+    
+    const [messageStoragePda] = anchor.web3.PublicKey.findProgramAddressSync(
+      [
+        Buffer.from("hyperlane"),
+        Buffer.from("-"),
+        Buffer.from("dispatched_message"),
+        Buffer.from("-"),
+        uniqueMessage.publicKey.toBuffer()
+      ],
+      configParams.mailboxProgram
+    );
+    
+    const [gasPaymentPda] = anchor.web3.PublicKey.findProgramAddressSync(
+      [
+        Buffer.from("hyperlane_igp"),
+        Buffer.from("-"),
+        Buffer.from("gas_payment"),
+        Buffer.from("-"),
+        uniqueMessage.publicKey.toBuffer()
+      ],
+      configParams.igpProgram
     );
 
+    const [boringAccountAta] = anchor.web3.PublicKey.findProgramAddressSync(
+        [
+          boringAccount.toBuffer(),
+          configParams.token2022Program.toBuffer(),
+          configParams.mintAuth.toBuffer(),
+        ],
+        ATA_PROGRAM_ID
+      );
+
+      const [strategistAta] = anchor.web3.PublicKey.findProgramAddressSync(
+        [
+          strategist.publicKey.toBuffer(),
+          configParams.token2022Program.toBuffer(),
+          configParams.mintAuth.toBuffer(),
+        ],
+        ATA_PROGRAM_ID
+      );
+
+    let amount = new anchor.BN(1000);
     anchor.AnchorProvider.env().connection.getLatestBlockhash().then(blockhash => console.log(blockhash));
     const tx = program.methods
-      .initialize(
-        owner.publicKey,
-        strategist.publicKey,
-        configParams,
+      .transferRemote(
+        destinationDomain,
+        evmRecipient,
+        decimals,
+        amount,
       )
     .accounts({
       // @ts-ignore
       boringAccount: boringAccount,
       signer: owner.publicKey,
+      targetProgram: configParams.targetProgram,
       systemProgram: anchor.web3.SystemProgram.programId,
+      noop: configParams.noop,
+      tokenPda: configParams.tokenPda,
+      mailboxProgram: configParams.mailboxProgram,
+      mailboxOutbox: configParams.mailboxOutbox,
+      messageDispatchAuthority: configParams.messageDispatchAuthority,
+      uniqueMessage: uniqueMessage.publicKey,
+      messageStoragePda: messageStoragePda,
+      igpProgram: configParams.igpProgram,
+      igpProgramData: configParams.igpProgramData,  
+      gasPaymentPda: gasPaymentPda,
+      igpAccount: configParams.igpAccount,
+      tokenSender: configParams.tokenSender,
+      token2022: configParams.token2022Program,
+      mintAuth: configParams.mintAuth,
+      boringAccountAta: boringAccountAta,
+      strategistAta: strategistAta,
     })
-    .signers([])
+    .signers([uniqueMessage])
+    .preInstructions([
+        ComputeBudgetProgram.setComputeUnitLimit({ 
+            units: 400_000  // Increase compute units
+        })])
     .rpc().then(tx => console.log(tx));
 
     // // Confirm the transaction

@@ -761,7 +761,7 @@ describe("boring-bridge-holder", () => {
     await anchor.AnchorProvider.env().connection.confirmTransaction(airdropTx);
 
     // 5. Set up the transfer amount (as a 32-byte array)
-    const amount = new anchor.BN(11000);
+    const amount = new anchor.BN(10000);
     // const value = BigInt(1000);
 
     // 7. Execute the transfer
