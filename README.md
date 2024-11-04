@@ -45,6 +45,14 @@ anchor build
     anchor test
    ```
 
+## Deploying
+
+Solana devnet:
+
+```bash
+anchor deploy --provider.cluster https://api.devnet.solana.com
+```
+
 ## Program Structure
 
 - `programs/boring-bridge-holder/src/lib.rs`: Main program file containing instruction handlers
