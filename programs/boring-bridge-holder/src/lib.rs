@@ -1,43 +1,32 @@
 use anchor_lang::prelude::*;
-use anchor_lang::solana_program::instruction::{AccountMeta, Instruction};
-use anchor_lang::solana_program::program::invoke;
-use anchor_spl::token_2022::{self, Token2022};
+use anchor_spl::token_2022::Token2022;
 use anchor_spl::token_interface::TokenAccount;
-
-// use anchor_spl::{
-//     associated_token::AssociatedToken,
-//     token::{self, Mint, MintTo, Token, TokenAccount, Transfer},
-// };
 use borsh::{BorshDeserialize, BorshSerialize};
 use solana_program::hash::hash;
 use solana_program::pubkey::Pubkey;
+
+pub mod instructions;
+use crate::instructions::transfer_remote;
+
+pub mod events;
+use crate::events::*;
+
 declare_id!("AWzzXzsLQvddsYdphCV6CTcr5ALXtg8AAtZXTqbUcVBF");
 
-// Logic for transfer_remote
-// https://github.com/hyperlane-xyz/hyperlane-monorepo/blob/main/rust/sealevel/libraries/hyperlane-sealevel-token/src/processor.rs#L275
-// So yes I beleive teh input ones are ones that are based on a per tx basis but should look at how the above calls into mailbox to see how it derives it
-// Accounts
-// SOL TARGET: EqRSt9aUDMKYKhzd1DGMderr3KNp29VZH3x5P7LFTC8m
-// 1) System program: 11111111111111111111111111111111 // const
-// 2) NOOP: noopb9bkMVfRPU8AsbpTUg8AQkHtKwMYZiFUjNRtMmV // const
-// 3) Token PDA: 84KCVv2ERnDShUepu5kCufm2nB8vdHnCCuWx4qbDKSTB owned by SOL TARGET // config
-// 4) Mailbox program: EitxJuv2iBjsg2d7jVy2LDC1e2zBrx4GB5Y9h2Ko3A9Y // config
-// 5) Mailbox outbox: FKKDGYumoKjQjVEejff6MD1FpKuBs6SdgAobVdJdE21B mutable // config
-// 6) Message dispatch authority: HncL4avgJq8uH2cGaAUf5rF2SS2ZLKH3MEyq97WFNmv6 // config
-// 7) MY ADDRESS: Hv4wFFTubQtULBCHR64H1CZ5KJezgH8GCiMr3PjtFyhJ, but I think this would be the programs accounts ID? the one that holds the token // const
-// 8) unique message? different for all of them, maybe you rng some account? // input I think this might just be a random account that has never been used before
-// 9) So a message storage PDA? My thinking is this something that is calculated offchain using sender address, and some nonce and bump? //input
-// OPTIONAL 10) IGP program: Hs7KVBU67nBnWhDPZkEFwWqrFMUfJbmY2DQ4gmCZfaZp // config
-// OPTIONAL 11) IGP Program data: FvGvXJf6bd2wx8FxzsYNzd2uHaPy7JTkmuKiVvSTt7jm // config
-// OPTIONAL 12) Gas payment PDA, again think its like the message storage PDA. // input
-// OPTIONAL 13) IGP account: 3Wp4qKkgf4tjXz1soGyTSndCgBPLZFSrZkiDZ8Qp9EEj // config
-// 14) Token sender: ABb3i11z7wKoGCfeRQNQbVYWjAm7jG7HzZnDLV4RKRbK // config
-// 15) Token 2022 Program: TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb // const
-// 16) Mint/mint authority PDA: AKEWE7Bgh87GPp171b4cJPSSZfmZwQ3KaqYqXoKLNAEE // config in my test this was the token address
-// 17) token senders associated account from which tokens will be burned: 4NJWKGTJuWWqhdsdnKZwskp2CQqLBtqaPkvm99du4Mpw <--- this is the token account owned by sender // config
 #[program]
 mod boring_bridge_holder {
     use super::*;
+
+    /// Initializes a new Boring Bridge Holder account
+    ///
+    /// # Arguments
+    /// * `ctx` - The context of accounts
+    /// * `owner` - The public key of the owner who can update configuration
+    /// * `strategist` - The public key of the strategist who can execute transfers
+    /// * `config` - The initial configuration data
+    ///
+    /// # Returns
+    /// * `Result<()>` - Result indicating success or containing an error
     pub fn initialize(
         ctx: Context<Initialize>,
         owner: Pubkey,
@@ -49,32 +38,87 @@ mod boring_bridge_holder {
         boring_account.creator = ctx.accounts.signer.key();
         boring_account.owner = owner;
         boring_account.strategist = strategist;
-        boring_account.config_hash = config.compute_hash();
+        let config_hash = config.compute_hash();
+        boring_account.config_hash = config_hash;
         boring_account.bump = ctx.bumps.boring_account;
 
-        msg!("Set Owner to: {}!", owner); // Message will show up in the tx logs
-        msg!("Set Strategist to: {}!", strategist); // Message will show up in the tx logs
+        emit!(Initialized {
+            boring_account: ctx.accounts.boring_account.key(),
+            creator: ctx.accounts.signer.key(),
+            bump: ctx.bumps.boring_account,
+            owner,
+            strategist,
+        });
+
+        emit!(ConfigurationUpdated {
+            config_hash,
+            target_program: config.target_program,
+            noop: config.noop,
+            token_pda: config.token_pda,
+            mailbox_program: config.mailbox_program,
+            mailbox_outbox: config.mailbox_outbox,
+            message_dispatch_authority: config.message_dispatch_authority,
+            igp_program: config.igp_program,
+            igp_program_data: config.igp_program_data,
+            igp_account: config.igp_account,
+            token_sender: config.token_sender,
+            token_2022_program: config.token_2022_program,
+            mint_auth: config.mint_auth,
+            destination_domain: config.destination_domain,
+            evm_recipient: config.evm_recipient,
+            decimals: config.decimals,
+        });
+
         Ok(())
     }
 
+    /// Transfers ownership of the Boring Bridge Holder to a new owner
+    ///
+    /// # Arguments
+    /// * `ctx` - The context of accounts
+    /// * `new_owner` - The public key of the new owner
+    ///
+    /// # Errors
+    /// * `CustomError::Unauthorized` - If the signer is not the current owner
+    ///
+    /// # Returns
+    /// * `Result<()>` - Result indicating success or containing an error
     pub fn transfer_ownership(ctx: Context<UpdateOwner>, new_owner: Pubkey) -> Result<()> {
         // Check that signer is the current owner
         let boring_account = &mut ctx.accounts.boring_account;
+        let old_owner = boring_account.owner;
         require_keys_eq!(
             ctx.accounts.signer.key(),
-            boring_account.owner,
+            old_owner,
             CustomError::Unauthorized
         );
 
         // Update the owner
         boring_account.owner = new_owner;
-        msg!("Owner updated to: {}", new_owner);
+
+        emit!(OwnershipTransferred {
+            old_owner,
+            new_owner,
+        });
+
         Ok(())
     }
 
+    /// Updates the strategist of the Boring Bridge Holder
+    ///
+    /// # Arguments
+    /// * `ctx` - The context of accounts
+    /// * `new_strategist` - The public key of the new strategist
+    ///
+    /// # Errors
+    /// * `CustomError::Unauthorized` - If the signer is not the current owner
+    ///
+    /// # Returns
+    /// * `Result<()>` - Result indicating success or containing an error
     pub fn update_strategist(ctx: Context<UpdateOwner>, new_strategist: Pubkey) -> Result<()> {
         // Check that signer is the current owner
         let boring_account = &mut ctx.accounts.boring_account;
+        let old_strategist = boring_account.strategist;
         require_keys_eq!(
             ctx.accounts.signer.key(),
             boring_account.owner,
@@ -83,10 +127,26 @@ mod boring_bridge_holder {
 
         // Update the owner
         boring_account.strategist = new_strategist;
-        msg!("Strategist updated to: {}", new_strategist);
+
+        emit!(StrategistUpdated {
+            old_strategist,
+            new_strategist,
+        });
+
         Ok(())
     }
 
+    /// Updates the configuration of the Boring Bridge Holder
+    ///
+    /// # Arguments
+    /// * `ctx` - The context of accounts
+    /// * `config` - The new configuration data
+    ///
+    /// # Errors
+    /// * `CustomError::Unauthorized` - If the signer is not the current owner
+    ///
+    /// # Returns
+    /// * `Result<()>` - Result indicating success or containing an error
     pub fn update_configuration(
         ctx: Context<UpdateOwner>,
         config: ConfigurationData,
@@ -99,13 +159,46 @@ mod boring_bridge_holder {
             CustomError::Unauthorized
         );
 
-        // Update the sol target
+        // Update the configuration hash
         boring_account.config_hash = config.compute_hash();
-        msg!("SolTarget updated to: {}", config.target_program);
-        // TODO can emit everything else too.
+
+        emit!(ConfigurationUpdated {
+            config_hash: boring_account.config_hash,
+            target_program: config.target_program,
+            noop: config.noop,
+            token_pda: config.token_pda,
+            mailbox_program: config.mailbox_program,
+            mailbox_outbox: config.mailbox_outbox,
+            message_dispatch_authority: config.message_dispatch_authority,
+            igp_program: config.igp_program,
+            igp_program_data: config.igp_program_data,
+            igp_account: config.igp_account,
+            token_sender: config.token_sender,
+            token_2022_program: config.token_2022_program,
+            mint_auth: config.mint_auth,
+            destination_domain: config.destination_domain,
+            evm_recipient: config.evm_recipient,
+            decimals: config.decimals,
+        });
+
         Ok(())
     }
 
+    /// Transfers tokens remotely using Hyperlane's infrastructure
+    ///
+    /// # Arguments
+    /// * `ctx` - The context of accounts
+    /// * `destination_domain` - The domain ID of the destination chain
+    /// * `evm_recipient` - The 32-byte recipient address on the destination chain
+    /// * `decimals` - The number of decimals for the token
+    /// * `amount` - The amount of tokens to transfer
+    ///
+    /// # Errors
+    /// * `CustomError::Unauthorized` - If the signer is not the strategist
+    /// * `CustomError::InvalidConfiguration` - If the provided configuration doesn't match stored hash
+    ///
+    /// # Returns
+    /// * `Result<()>` - Result indicating success or containing an error
     pub fn transfer_remote(
         ctx: Context<TransferRemoteContext>,
         destination_domain: u32,
@@ -113,125 +206,38 @@ mod boring_bridge_holder {
         decimals: u8,
         amount: u64,
     ) -> Result<()> {
-        let boring_account = &mut ctx.accounts.boring_account;
         // Verify strategist
+        msg!(
+            "Verifying signer: {} against stored strategist: {}",
+            ctx.accounts.signer.key(),
+            ctx.accounts.boring_account.strategist
+        );
         require_keys_eq!(
             ctx.accounts.signer.key(),
-            boring_account.strategist,
+            ctx.accounts.boring_account.strategist,
             CustomError::Unauthorized
         );
 
         // Verify configuration matches stored hash
-        let config = ConfigurationData {
-            target_program: ctx.accounts.target_program.key(),
-            noop: ctx.accounts.noop.key(),
-            token_pda: ctx.accounts.token_pda.key(),
-            mailbox_program: ctx.accounts.mailbox_program.key(),
-            mailbox_outbox: ctx.accounts.mailbox_outbox.key(),
-            message_dispatch_authority: ctx.accounts.message_dispatch_authority.key(),
-            igp_program: ctx.accounts.igp_program.key(),
-            igp_program_data: ctx.accounts.igp_program_data.key(),
-            igp_account: ctx.accounts.igp_account.key(),
-            token_sender: ctx.accounts.token_sender.key(),
-            token_2022_program: ctx.accounts.token_2022.key(),
-            mint_auth: ctx.accounts.mint_auth.key(),
-            destination_domain: destination_domain,
-            evm_recipient: evm_recipient,
-            decimals: decimals,
-        };
+        msg!("Verifying configuration matches stored hash");
+        transfer_remote::verify_configuration(
+            &ctx.accounts,
+            destination_domain,
+            evm_recipient,
+            decimals,
+        )?;
 
-        require!(
-            config.compute_hash() == boring_account.config_hash,
-            CustomError::InvalidConfiguration
-        );
+        // Transfer tokens to strategist
+        msg!("Transferring tokens to strategist");
+        transfer_remote::transfer_tokens_to_strategist(&ctx.accounts, amount, decimals)?;
 
-        // Create the seeds array first
-        let bump = &[boring_account.bump];
-        let seeds = &[
-            b"boring_state" as &[u8],
-            boring_account.owner.as_ref(),
-            bump,
-        ];
-        let signer_seeds = &[&seeds[..]];
-
-        // Before calling transfer_remote, we need to transfer the tokens to the strategist_ata.
-        // Transfer tokens to strategist with PDA signing
-        let transfer_cpi_context = CpiContext::new_with_signer(
-            ctx.accounts.token_2022.to_account_info(),
-            token_2022::TransferChecked {
-                // Change to TransferChecked
-                from: ctx.accounts.boring_account_ata.to_account_info(),
-                to: ctx.accounts.strategist_ata.to_account_info(),
-                authority: boring_account.to_account_info(),
-                mint: ctx.accounts.mint_auth.to_account_info(), // Need to add mint for transfer_checked
-            },
-            signer_seeds,
-        );
-        token_2022::transfer_checked(transfer_cpi_context, amount, decimals)?;
-
-        let mut amount_or_id = [0u8; 32];
-        amount_or_id[..8].copy_from_slice(&amount.to_le_bytes());
-        // Prepare the TransferRemote data
-        let transfer_data = TransferRemote {
-            destination_domain: destination_domain,
-            recipient: evm_recipient,
-            amount_or_id: amount_or_id,
-        };
-
-        // Serialize the TransferRemote data
-        let mut data = vec![1, 1, 1, 1, 1, 1, 1, 1, 1]; // Looking at test TXs the instruction header for `transfer_remote` is 0x010101010101010101
-        data.extend(transfer_data.try_to_vec()?); // Serialize with Borsh
-
-        // Construct the required accounts for the CPI
-        let account_metas = vec![
-            AccountMeta::new_readonly(ctx.accounts.system_program.key(), false),
-            AccountMeta::new_readonly(ctx.accounts.noop.key(), false),
-            AccountMeta::new_readonly(ctx.accounts.token_pda.key(), false),
-            AccountMeta::new_readonly(ctx.accounts.mailbox_program.key(), false),
-            AccountMeta::new(ctx.accounts.mailbox_outbox.key(), false),
-            AccountMeta::new_readonly(ctx.accounts.message_dispatch_authority.key(), false),
-            AccountMeta::new(ctx.accounts.signer.key(), true),
-            AccountMeta::new_readonly(ctx.accounts.unique_message.key(), true),
-            AccountMeta::new(ctx.accounts.message_storage_pda.key(), false),
-            AccountMeta::new_readonly(ctx.accounts.igp_program.key(), false),
-            AccountMeta::new(ctx.accounts.igp_program_data.key(), false),
-            AccountMeta::new(ctx.accounts.gas_payment_pda.key(), false),
-            AccountMeta::new_readonly(ctx.accounts.igp_account.key(), false),
-            AccountMeta::new(ctx.accounts.token_sender.key(), false),
-            AccountMeta::new_readonly(ctx.accounts.token_2022.key(), false),
-            AccountMeta::new(ctx.accounts.mint_auth.key(), false),
-            AccountMeta::new(ctx.accounts.strategist_ata.key(), false),
-        ];
-
-        // Create the instruction
-        let instruction = Instruction {
-            program_id: ctx.accounts.target_program.key(),
-            accounts: account_metas,
-            data, // Serialized data
-        };
-
-        // Invoke the instruction
-        invoke(
-            &instruction,
-            &[
-                ctx.accounts.system_program.to_account_info(),
-                ctx.accounts.noop.to_account_info(),
-                ctx.accounts.token_pda.to_account_info(),
-                ctx.accounts.mailbox_program.to_account_info(),
-                ctx.accounts.mailbox_outbox.to_account_info(),
-                ctx.accounts.message_dispatch_authority.to_account_info(),
-                ctx.accounts.signer.to_account_info(),
-                ctx.accounts.unique_message.to_account_info(),
-                ctx.accounts.message_storage_pda.to_account_info(),
-                ctx.accounts.igp_program.to_account_info(),
-                ctx.accounts.igp_program_data.to_account_info(),
-                ctx.accounts.gas_payment_pda.to_account_info(),
-                ctx.accounts.igp_account.to_account_info(),
-                ctx.accounts.token_sender.to_account_info(),
-                ctx.accounts.token_2022.to_account_info(),
-                ctx.accounts.mint_auth.to_account_info(),
-                ctx.accounts.strategist_ata.to_account_info(),
-            ],
+        // Create and execute the transfer remote instruction
+        msg!("Creating and executing transfer remote instruction");
+        transfer_remote::execute_transfer_remote(
+            &ctx.accounts,
+            destination_domain,
+            evm_recipient,
+            amount,
         )?;
 
         Ok(())
@@ -411,15 +417,10 @@ pub struct TransferRemote {
     pub amount_or_id: [u8; 32], // U256, serialized as a byte array
 }
 
-// TODO change signer in context to be strategist
-// TODO decrease stack usage
-// TODO remove all warnings too.
-// TODO thinking about the below more, it is kinda nice to know for sure that the strategist address is something
-// which would prevent anyone from calling the function with other inputs. So maybe just add the PDA checks to the strategist ata?
-// TODO so I could technically add the decimals, strategist strategist ata, and evm recipient to this struct.
-// But then there would be no update strategist function which isn't terrible cuz it is less code.
-// TODO could rename token_sender_ata to something better like boring_account_ata.
-// Helper struct for configuration data
+/// Configuration data for the Boring Bridge Holder
+///
+/// This struct contains all the necessary addresses and parameters
+/// for interacting with Hyperlane's infrastructure
 #[derive(AnchorSerialize, AnchorDeserialize)] // Add this derive to enable serialization
 pub struct ConfigurationData {
     target_program: Pubkey,
@@ -439,6 +440,7 @@ pub struct ConfigurationData {
     decimals: u8,
 }
 
+/// Digests the configuration data into a 32-byte hash
 impl ConfigurationData {
     fn compute_hash(&self) -> [u8; 32] {
         let mut data = Vec::new();
@@ -447,6 +449,7 @@ impl ConfigurationData {
     }
 }
 
+/// The state account for the Boring Bridge Holder
 #[account]
 pub struct BoringState {
     creator: Pubkey,

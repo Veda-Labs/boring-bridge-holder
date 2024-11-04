@@ -606,4 +606,7 @@ describe("boring-bridge-holder", () => {
     // - Check message was stored?
     // - Check gas payment was made?
   });
+
+  // TODO add in tests where we make sure that the PDA checks in the context are reverting, so mainly in the transfer remote instruction
+  // Then I can probs delete the other PDA tests that dont even call the instruction
 });
