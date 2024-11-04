@@ -220,7 +220,7 @@ describe("boring-bridge-holder", () => {
       .rpc();
       expect.fail("Should have thrown error");
     } catch (e) {
-      // expect(e.toString()).to.include("ReInitialized");
+      expect(e.toString()).to.include("already in use");
     }
   });
 
@@ -454,65 +454,266 @@ describe("boring-bridge-holder", () => {
     }
   });
 
-  it("Verifies PDA derivation logic", async () => {
-    // Known values from your test transaction
-    const knownUniqueMessage = new anchor.web3.PublicKey("BvSZDyyAQqJes9BwTy8HRngqk9fAHgJLA3TvzVG93rvW");
-    const knownMailboxProgram = new anchor.web3.PublicKey("EitxJuv2iBjsg2d7jVy2LDC1e2zBrx4GB5Y9h2Ko3A9Y");
-    const knownIgpProgram = new anchor.web3.PublicKey("Hs7KVBU67nBnWhDPZkEFwWqrFMUfJbmY2DQ4gmCZfaZp");
-    
-    // Expected PDA addresses from your test transaction
-    const expectedMessageStoragePda = new anchor.web3.PublicKey("7wHZmEimQKZUn96HXNDK7UUeQFvEc4raB9wEtMBhnHTi");
-    const expectedGasPaymentPda = new anchor.web3.PublicKey("ALbDN9TJ5yVwrHPr9VZW6AHzh4TpJWurqEWvNR4web3j");
-
-    // Derive PDAs using the same logic from the macros
-    const [derivedMessageStoragePda] = anchor.web3.PublicKey.findProgramAddressSync(
+  it("Fails with malformed message storage PDA", async () => {
+    const uniqueMessage = anchor.web3.Keypair.generate();
+    // Create an incorrect message storage PDA by using wrong seeds
+    const [messageStoragePda] = anchor.web3.PublicKey.findProgramAddressSync(
       [
-        Buffer.from("hyperlane"),
-        Buffer.from("-"),
-        Buffer.from("dispatched_message"),
-        Buffer.from("-"),
-        knownUniqueMessage.toBuffer()
+        Buffer.from("wrong_seed"),
+        uniqueMessage.publicKey.toBuffer()
       ],
-      knownMailboxProgram
+      configParams.mailboxProgram
     );
-
-    const [derivedGasPaymentPda] = anchor.web3.PublicKey.findProgramAddressSync(
+    
+    const [gasPaymentPda] = anchor.web3.PublicKey.findProgramAddressSync(
       [
         Buffer.from("hyperlane_igp"),
         Buffer.from("-"),
         Buffer.from("gas_payment"),
         Buffer.from("-"),
-        knownUniqueMessage.toBuffer()
+        uniqueMessage.publicKey.toBuffer()
       ],
-      knownIgpProgram
+      configParams.igpProgram
     );
 
-    // Verify the derived PDAs match the expected addresses
-    expect(derivedMessageStoragePda.equals(expectedMessageStoragePda)).to.be.true;
-    expect(derivedGasPaymentPda.equals(expectedGasPaymentPda)).to.be.true;
+    const [strategistAta] = anchor.web3.PublicKey.findProgramAddressSync(
+      [
+        strategist.publicKey.toBuffer(),
+        configParams.token2022Program.toBuffer(),
+        configParams.mintAuth.toBuffer(),
+      ],
+      ATA_PROGRAM_ID
+    );
+
+    const amount = new anchor.BN(1000);
+
+    try {
+      await program.methods
+        .transferRemote(destinationDomain, evmRecipient, decimals, amount)
+        .accounts({
+          boringAccount: boringAccount,
+          signer: strategist.publicKey,
+          targetProgram: configParams.targetProgram,
+          systemProgram: anchor.web3.SystemProgram.programId,
+          noop: configParams.noop,
+          tokenPda: configParams.tokenPda,
+          mailboxProgram: configParams.mailboxProgram,
+          mailboxOutbox: configParams.mailboxOutbox,
+          messageDispatchAuthority: configParams.messageDispatchAuthority,
+          uniqueMessage: uniqueMessage.publicKey,
+          messageStoragePda: messageStoragePda, // Using incorrect PDA
+          igpProgram: configParams.igpProgram,
+          igpProgramData: configParams.igpProgramData,
+          gasPaymentPda: gasPaymentPda,
+          igpAccount: configParams.igpAccount,
+          tokenSender: configParams.tokenSender,
+          token2022: configParams.token2022Program,
+          mintAuth: configParams.mintAuth,
+          boringAccountAta: boringAccountAta,
+          strategistAta: strategistAta,
+        })
+        .signers([strategist, uniqueMessage])
+        .rpc();
+      expect.fail("Should have thrown error");
+    } catch (e) {
+      expect(e.toString()).to.include("ConstraintSeeds");
+    }
   });
 
-  it("Verifies token sender associated account derivation", async () => {
-    // Please provide these values from your test transaction:
-    const tokenSender = new anchor.web3.PublicKey("Hv4wFFTubQtULBCHR64H1CZ5KJezgH8GCiMr3PjtFyhJ");
-    const mintAuth = new anchor.web3.PublicKey("AKEWE7Bgh87GPp171b4cJPSSZfmZwQ3KaqYqXoKLNAEE");
-    const token2022Program = new anchor.web3.PublicKey("TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb");
+  it("Fails with malformed gas payment PDA", async () => {
+    const uniqueMessage = anchor.web3.Keypair.generate();
     
-    // Expected ATA from your test transaction
-    const expectedAta = new anchor.web3.PublicKey("4NJWKGTJuWWqhdsdnKZwskp2CQqLBtqaPkvm99du4Mpw");
-
-    // Derive the ATA
-    const [derivedAta] = anchor.web3.PublicKey.findProgramAddressSync(
-        [
-            tokenSender.toBuffer(),
-            token2022Program.toBuffer(),
-            mintAuth.toBuffer(),
-        ],
-        ATA_PROGRAM_ID
+    const [messageStoragePda] = anchor.web3.PublicKey.findProgramAddressSync(
+      [
+        Buffer.from("hyperlane"),
+        Buffer.from("-"),
+        Buffer.from("dispatched_message"),
+        Buffer.from("-"),
+        uniqueMessage.publicKey.toBuffer()
+      ],
+      configParams.mailboxProgram
+    );
+    
+    // Create an incorrect gas payment PDA by using wrong seeds
+    const [gasPaymentPda] = anchor.web3.PublicKey.findProgramAddressSync(
+      [
+        Buffer.from("wrong_seed"),
+        uniqueMessage.publicKey.toBuffer()
+      ],
+      configParams.igpProgram
     );
 
-    // Verify the derived ATA matches the expected address
-    expect(derivedAta.equals(expectedAta)).to.be.true;
+    const [strategistAta] = anchor.web3.PublicKey.findProgramAddressSync(
+      [
+        strategist.publicKey.toBuffer(),
+        configParams.token2022Program.toBuffer(),
+        configParams.mintAuth.toBuffer(),
+      ],
+      ATA_PROGRAM_ID
+    );
+
+    const amount = new anchor.BN(1000);
+
+    try {
+      await program.methods
+        .transferRemote(destinationDomain, evmRecipient, decimals, amount)
+        .accounts({
+          boringAccount: boringAccount,
+          signer: strategist.publicKey,
+          targetProgram: configParams.targetProgram,
+          systemProgram: anchor.web3.SystemProgram.programId,
+          noop: configParams.noop,
+          tokenPda: configParams.tokenPda,
+          mailboxProgram: configParams.mailboxProgram,
+          mailboxOutbox: configParams.mailboxOutbox,
+          messageDispatchAuthority: configParams.messageDispatchAuthority,
+          uniqueMessage: uniqueMessage.publicKey,
+          messageStoragePda: messageStoragePda,
+          igpProgram: configParams.igpProgram,
+          igpProgramData: configParams.igpProgramData,
+          gasPaymentPda: gasPaymentPda, // Using incorrect PDA
+          igpAccount: configParams.igpAccount,
+          tokenSender: configParams.tokenSender,
+          token2022: configParams.token2022Program,
+          mintAuth: configParams.mintAuth,
+          boringAccountAta: boringAccountAta,
+          strategistAta: strategistAta,
+        })
+        .signers([strategist, uniqueMessage])
+        .rpc();
+      expect.fail("Should have thrown error");
+    } catch (e) {
+      expect(e.toString()).to.include("ConstraintSeeds");
+    }
+  });
+
+  it("Fails with malformed boring account ATA", async () => {
+    const uniqueMessage = anchor.web3.Keypair.generate();
+    
+    const [messageStoragePda] = anchor.web3.PublicKey.findProgramAddressSync(
+      [
+        Buffer.from("hyperlane"),
+        Buffer.from("-"),
+        Buffer.from("dispatched_message"),
+        Buffer.from("-"),
+        uniqueMessage.publicKey.toBuffer()
+      ],
+      configParams.mailboxProgram
+    );
+    
+    const [gasPaymentPda] = anchor.web3.PublicKey.findProgramAddressSync(
+      [
+        Buffer.from("hyperlane_igp"),
+        Buffer.from("-"),
+        Buffer.from("gas_payment"),
+        Buffer.from("-"),
+        uniqueMessage.publicKey.toBuffer()
+      ],
+      configParams.igpProgram
+    );
+
+    const [strategistAta] = anchor.web3.PublicKey.findProgramAddressSync(
+      [
+        strategist.publicKey.toBuffer(),
+        configParams.token2022Program.toBuffer(),
+        configParams.mintAuth.toBuffer(),
+      ],
+      ATA_PROGRAM_ID
+    );
+
+    const amount = new anchor.BN(1000);
+
+    try {
+      await program.methods
+        .transferRemote(destinationDomain, evmRecipient, decimals, amount)
+        .accounts({
+          boringAccount: boringAccount,
+          signer: strategist.publicKey,
+          targetProgram: configParams.targetProgram,
+          systemProgram: anchor.web3.SystemProgram.programId,
+          noop: configParams.noop,
+          tokenPda: configParams.tokenPda,
+          mailboxProgram: configParams.mailboxProgram,
+          mailboxOutbox: configParams.mailboxOutbox,
+          messageDispatchAuthority: configParams.messageDispatchAuthority,
+          uniqueMessage: uniqueMessage.publicKey,
+          messageStoragePda: messageStoragePda,
+          igpProgram: configParams.igpProgram,
+          igpProgramData: configParams.igpProgramData,
+          gasPaymentPda: gasPaymentPda,
+          igpAccount: configParams.igpAccount,
+          tokenSender: configParams.tokenSender,
+          token2022: configParams.token2022Program,
+          mintAuth: configParams.mintAuth,
+          boringAccountAta: strategistAta, // Using incorrect ATA
+          strategistAta: strategistAta,
+        })
+        .signers([strategist, uniqueMessage])
+        .rpc();
+      expect.fail("Should have thrown error");
+    } catch (e) {
+      expect(e.toString()).to.include("ConstraintTokenOwner");
+    }
+  });
+
+  it("Fails with malformed strategist ATA", async () => {
+    const uniqueMessage = anchor.web3.Keypair.generate();
+    
+    const [messageStoragePda] = anchor.web3.PublicKey.findProgramAddressSync(
+      [
+        Buffer.from("hyperlane"),
+        Buffer.from("-"),
+        Buffer.from("dispatched_message"),
+        Buffer.from("-"),
+        uniqueMessage.publicKey.toBuffer()
+      ],
+      configParams.mailboxProgram
+    );
+    
+    const [gasPaymentPda] = anchor.web3.PublicKey.findProgramAddressSync(
+      [
+        Buffer.from("hyperlane_igp"),
+        Buffer.from("-"),
+        Buffer.from("gas_payment"),
+        Buffer.from("-"),
+        uniqueMessage.publicKey.toBuffer()
+      ],
+      configParams.igpProgram
+    );
+
+    const amount = new anchor.BN(1000);
+
+    try {
+      await program.methods
+        .transferRemote(destinationDomain, evmRecipient, decimals, amount)
+        .accounts({
+          boringAccount: boringAccount,
+          signer: strategist.publicKey,
+          targetProgram: configParams.targetProgram,
+          systemProgram: anchor.web3.SystemProgram.programId,
+          noop: configParams.noop,
+          tokenPda: configParams.tokenPda,
+          mailboxProgram: configParams.mailboxProgram,
+          mailboxOutbox: configParams.mailboxOutbox,
+          messageDispatchAuthority: configParams.messageDispatchAuthority,
+          uniqueMessage: uniqueMessage.publicKey,
+          messageStoragePda: messageStoragePda,
+          igpProgram: configParams.igpProgram,
+          igpProgramData: configParams.igpProgramData,
+          gasPaymentPda: gasPaymentPda,
+          igpAccount: configParams.igpAccount,
+          tokenSender: configParams.tokenSender,
+          token2022: configParams.token2022Program,
+          mintAuth: configParams.mintAuth,
+          boringAccountAta: boringAccountAta,
+          strategistAta: boringAccountAta, // Using incorrect ATA
+        })
+        .signers([strategist, uniqueMessage])
+        .rpc();
+      expect.fail("Should have thrown error");
+    } catch (e) {
+      expect(e.toString()).to.include("ConstraintTokenOwner");
+    }
   });
 
   it("Can transfer remote tokens", async () => {
@@ -606,7 +807,4 @@ describe("boring-bridge-holder", () => {
     // - Check message was stored?
     // - Check gas payment was made?
   });
-
-  // TODO add in tests where we make sure that the PDA checks in the context are reverting, so mainly in the transfer remote instruction
-  // Then I can probs delete the other PDA tests that dont even call the instruction
 });
