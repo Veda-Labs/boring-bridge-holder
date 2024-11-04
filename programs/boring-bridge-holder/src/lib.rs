@@ -46,7 +46,7 @@ mod boring_bridge_holder {
     ) -> Result<()> {
         let boring_account = &mut ctx.accounts.boring_account;
 
-        boring_account.creator = ctx.accounts.creator.key();
+        boring_account.creator = ctx.accounts.signer.key();
         boring_account.owner = owner;
         boring_account.strategist = strategist;
         boring_account.config_hash = config.compute_hash();
@@ -116,7 +116,7 @@ mod boring_bridge_holder {
         let boring_account = &mut ctx.accounts.boring_account;
         // Verify strategist
         require_keys_eq!(
-            ctx.accounts.strategist.key(),
+            ctx.accounts.signer.key(),
             boring_account.strategist,
             CustomError::Unauthorized
         );
@@ -190,7 +190,7 @@ mod boring_bridge_holder {
             AccountMeta::new_readonly(ctx.accounts.mailbox_program.key(), false),
             AccountMeta::new(ctx.accounts.mailbox_outbox.key(), false),
             AccountMeta::new_readonly(ctx.accounts.message_dispatch_authority.key(), false),
-            AccountMeta::new(ctx.accounts.strategist.key(), true),
+            AccountMeta::new(ctx.accounts.signer.key(), true),
             AccountMeta::new_readonly(ctx.accounts.unique_message.key(), true),
             AccountMeta::new(ctx.accounts.message_storage_pda.key(), false),
             AccountMeta::new_readonly(ctx.accounts.igp_program.key(), false),
@@ -220,7 +220,7 @@ mod boring_bridge_holder {
                 ctx.accounts.mailbox_program.to_account_info(),
                 ctx.accounts.mailbox_outbox.to_account_info(),
                 ctx.accounts.message_dispatch_authority.to_account_info(),
-                ctx.accounts.strategist.to_account_info(),
+                ctx.accounts.signer.to_account_info(),
                 ctx.accounts.unique_message.to_account_info(),
                 ctx.accounts.message_storage_pda.to_account_info(),
                 ctx.accounts.igp_program.to_account_info(),
@@ -242,20 +242,24 @@ mod boring_bridge_holder {
 pub struct Initialize<'info> {
     #[account(
         init,
-        payer = creator,
+        payer = signer,
         space = 8 + 32 + 32 + 32 + 32 + 1,
-        seeds = [b"boring_state", creator.key().as_ref()],
+        seeds = [b"boring_state", signer.key().as_ref()],
         bump
     )]
     pub boring_account: Account<'info, BoringState>,
     #[account(mut)]
-    pub creator: Signer<'info>,
+    pub signer: Signer<'info>,
     pub system_program: Program<'info, System>, // Only needed when creating or initializing an account.
 }
 
 #[derive(Accounts)]
 pub struct UpdateOwner<'info> {
-    #[account(mut)]
+    #[account(
+        mut,
+        seeds = [b"boring_state", boring_account.creator.as_ref()],
+        bump = boring_account.bump,
+    )]
     pub boring_account: Account<'info, BoringState>,
     #[account(mut)] // might not be needed
     pub signer: Signer<'info>,
@@ -263,7 +267,11 @@ pub struct UpdateOwner<'info> {
 
 #[derive(Accounts)]
 pub struct UpdateStrategist<'info> {
-    #[account(mut)]
+    #[account(
+        mut,
+        seeds = [b"boring_state", boring_account.creator.as_ref()],
+        bump = boring_account.bump,
+    )]
     pub boring_account: Account<'info, BoringState>,
     #[account(mut)] // might not be needed
     pub signer: Signer<'info>,
@@ -271,7 +279,11 @@ pub struct UpdateStrategist<'info> {
 
 #[derive(Accounts)]
 pub struct UpdateConfiguration<'info> {
-    #[account(mut)]
+    #[account(
+        mut,
+        seeds = [b"boring_state", boring_account.creator.as_ref()],
+        bump = boring_account.bump,
+    )]
     pub boring_account: Account<'info, BoringState>,
     #[account(mut)] // might not be needed
     pub signer: Signer<'info>,
@@ -280,13 +292,12 @@ pub struct UpdateConfiguration<'info> {
 #[derive(Accounts)]
 pub struct TransferRemoteContext<'info> {
     #[account(
-        mut,
         seeds = [b"boring_state", boring_account.creator.as_ref()],
         bump = boring_account.bump,
     )]
     pub boring_account: Account<'info, BoringState>,
-    #[account(mut)] // might not be needed
-    pub strategist: Signer<'info>,
+    #[account(mut)]
+    pub signer: Signer<'info>,
     /// Taret program
     #[account()]
     /// CHECK: Checked in config hash
@@ -315,7 +326,7 @@ pub struct TransferRemoteContext<'info> {
     pub message_dispatch_authority: AccountInfo<'info>,
     /// Unique message / gas payment account
     #[account(signer)]
-    /// CHECK: This is the gas payment account
+    /// CHECK: Only needs to be a signer
     pub unique_message: AccountInfo<'info>,
     /// Message storage PDA
     #[account(
@@ -330,7 +341,7 @@ pub struct TransferRemoteContext<'info> {
         bump,
         seeds::program = mailbox_program.key()
     )]
-    /// CHECK: This is the message storage PDA
+    /// CHECK: Checked against PDA
     pub message_storage_pda: AccountInfo<'info>,
     /// IGP Program
     #[account()]
@@ -353,7 +364,7 @@ pub struct TransferRemoteContext<'info> {
         bump,
         seeds::program = igp_program.key()
     )]
-    /// CHECK: not needed
+    /// CHECK: Checked against PDA
     pub gas_payment_pda: AccountInfo<'info>,
     /// IGP Account
     #[account()]
@@ -380,16 +391,16 @@ pub struct TransferRemoteContext<'info> {
         associated_token::authority = boring_account,
         associated_token::token_program = token_2022
     )]
-    /// CHECK: Checked in config hash
+    /// CHECK: Checked against PDA
     pub boring_account_ata: InterfaceAccount<'info, TokenAccount>,
     /// Strategist Associated Token Account
     #[account(
         mut,
         associated_token::mint = mint_auth,
-        associated_token::authority = strategist,
+        associated_token::authority = signer,
         associated_token::token_program = token_2022
     )]
-    /// CHECK: Checked in config hash
+    /// CHECK: Checked against PDA
     pub strategist_ata: InterfaceAccount<'info, TokenAccount>,
 }
 

@@ -82,7 +82,7 @@ describe("boring-bridge-holder", () => {
       )
     .accounts({
       boringAccount: boringAccount,
-      creator: owner.publicKey,
+      signer: owner.publicKey,
     })
     .signers([])
     .rpc();
@@ -214,7 +214,7 @@ describe("boring-bridge-holder", () => {
         .initialize(owner.publicKey, strategist.publicKey, configParams)
       .accounts({
         boringAccount: boringAccount,
-        creator: owner.publicKey,
+        signer: owner.publicKey,
       })
       .signers([])
       .rpc();
@@ -340,7 +340,7 @@ describe("boring-bridge-holder", () => {
         .transferRemote(destinationDomain, evmRecipient, decimals, amount)
         .accounts({
           boringAccount: boringAccount,
-          strategist: strategist.publicKey,
+          signer: strategist.publicKey,
           targetProgram: configParams.targetProgram,
           systemProgram: anchor.web3.SystemProgram.programId,
           noop: configParams.noop,
@@ -426,7 +426,7 @@ describe("boring-bridge-holder", () => {
         .transferRemote(destinationDomain, evmRecipient, decimals, amount)
         .accounts({
           boringAccount: boringAccount,
-          strategist: strategist.publicKey,
+          signer: strategist.publicKey,
           targetProgram: invalidTargetProgram, // Using different target program
           systemProgram: anchor.web3.SystemProgram.programId,
           noop: configParams.noop,
@@ -568,7 +568,7 @@ describe("boring-bridge-holder", () => {
         .transferRemote(destinationDomain, evmRecipient, decimals, amount)
         .accounts({
             boringAccount: boringAccount,
-            strategist: strategist.publicKey,
+            signer: strategist.publicKey,
             targetProgram: configParams.targetProgram,
             systemProgram: anchor.web3.SystemProgram.programId,
             noop: configParams.noop,
