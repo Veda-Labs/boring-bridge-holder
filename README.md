@@ -53,6 +53,36 @@ Solana devnet:
 anchor deploy --provider.cluster https://api.devnet.solana.com
 ```
 
+Eclipse Mainnet:
+
+```bash
+solana program deploy target/deploy/boring_bridge_holder.so --keypair ~/.config/solana/id.json --url https://eclipse.helius-rpc.com
+```
+
+To retry txs:
+
+```bash
+solana program deploy target/deploy/boring_bridge_holder.so --keypair ~/.config/solana/id.json --url https://eclipse.helius-rpc.com --buffer <PATH_TO_INTERMEDIATE_KEYPAIR>
+```
+
+To generate an intermediate keypair:
+
+```bash
+solana-keygen recover --outfile ./intermediate.json
+```
+
+To see abandoned buffer accounts:
+
+```bash
+solana program show --buffers --keypair ~/.config/solana/id.json -u https://eclipse.helius-rpc.com
+```
+
+To close abandoned buffer accounts:
+
+```bash
+solana program close --buffers --keypair ~/.config/solana/id.json -u https://eclipse.helius-rpc.com
+```
+
 ## Program Structure
 
 - `programs/boring-bridge-holder/src/lib.rs`: Main program file containing instruction handlers
