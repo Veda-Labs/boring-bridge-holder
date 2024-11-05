@@ -3,6 +3,11 @@ import { Program } from "@coral-xyz/anchor";
 import { BoringBridgeHolder } from "../target/types/boring_bridge_holder";
 import { expect } from "chai";
 import { ComputeBudgetProgram } from "@solana/web3.js";
+
+// TODO so the boringAccountAta is dependent on the provider.wallet.
+// So I need to find some way to create the boringAccountAta using some wallet from this test,
+// then I need to figure out how to send some tokens to it so that others can run the test suite.
+
 // The signers array will automatically have the provider's wallet added to it.(which is the owner)
 describe("boring-bridge-holder", () => {
   // Configure the client to use the local cluster.
@@ -75,12 +80,14 @@ describe("boring-bridge-holder", () => {
     );
 
     const tx = await program.methods
-      .initialize(
+    .initialize(
+        // @ts-ignore
         owner.publicKey,
         strategist.publicKey,
         configParams,
       )
     .accounts({
+      // @ts-ignore
       boringAccount: boringAccount,
       signer: owner.publicKey,
     })
@@ -95,7 +102,9 @@ describe("boring-bridge-holder", () => {
     expect(holderAccount.owner.equals(owner.publicKey)).to.be.true;
     // Make sure the strategist is set
     expect(holderAccount.strategist.equals(strategist.publicKey)).to.be.true;
-    // TODO check that config params is set.
+    // Verify the config hash is not all zeros
+    const isAllZeros = holderAccount.configHash.every(byte => byte === 0);
+    expect(isAllZeros).to.be.false;
   });
 
   it("Can transfer ownership", async () => {
@@ -104,7 +113,8 @@ describe("boring-bridge-holder", () => {
     const tx = await program.methods
       .transferOwnership(newOwner.publicKey)
     .accounts({
-      boringAccount: boringAccount,
+      // @ts-ignore
+        boringAccount: boringAccount,
       signer: owner.publicKey,
     })
     .signers([])
@@ -121,6 +131,7 @@ describe("boring-bridge-holder", () => {
     const tx2 = await program.methods
       .transferOwnership(owner.publicKey)
     .accounts({
+      // @ts-ignore
       boringAccount: boringAccount,
       signer: newOwner.publicKey,
     })
@@ -137,6 +148,7 @@ describe("boring-bridge-holder", () => {
     const tx = await program.methods
       .updateStrategist(newStrategist.publicKey)
     .accounts({
+      // @ts-ignore
       boringAccount: boringAccount,
       signer: owner.publicKey,
     })
@@ -154,6 +166,7 @@ describe("boring-bridge-holder", () => {
     const tx2 = await program.methods
       .updateStrategist(strategist.publicKey)
     .accounts({
+      // @ts-ignore
       boringAccount: boringAccount,
       signer: owner.publicKey,
     })
@@ -173,8 +186,10 @@ describe("boring-bridge-holder", () => {
 
     // Update configuration
     const tx = await program.methods
+      // @ts-ignore
       .updateConfiguration(configParams)
     .accounts({
+      // @ts-ignore
       boringAccount: boringAccount,
       signer: owner.publicKey,
     })
@@ -192,8 +207,10 @@ describe("boring-bridge-holder", () => {
     configParams.noop = new anchor.web3.PublicKey("noopb9bkMVfRPU8AsbpTUg8AQkHtKwMYZiFUjNRtMmV");
 
     const tx2 = await program.methods
+      // @ts-ignore
       .updateConfiguration(configParams)
     .accounts({
+      // @ts-ignore
       boringAccount: boringAccount,
       signer: owner.publicKey,
     })
@@ -211,8 +228,10 @@ describe("boring-bridge-holder", () => {
   it("Cannot re initialize", async () => {
     try {
       await program.methods
+        // @ts-ignore
         .initialize(owner.publicKey, strategist.publicKey, configParams)
       .accounts({
+        // @ts-ignore
         boringAccount: boringAccount,
         signer: owner.publicKey,
       })
@@ -233,6 +252,7 @@ describe("boring-bridge-holder", () => {
       await program.methods
         .transferOwnership(newOwner.publicKey)
         .accounts({
+          // @ts-ignore
           boringAccount: boringAccount,
           signer: randomUser.publicKey,
         })
@@ -252,6 +272,7 @@ describe("boring-bridge-holder", () => {
       await program.methods
         .updateStrategist(newStrategist.publicKey)
         .accounts({
+          // @ts-ignore
           boringAccount: boringAccount,
           signer: randomUser.publicKey,
         })
@@ -268,8 +289,10 @@ describe("boring-bridge-holder", () => {
 
     try {
       await program.methods
+        // @ts-ignore
         .updateConfiguration(configParams)
         .accounts({
+          // @ts-ignore
           boringAccount: boringAccount,
           signer: randomUser.publicKey,
         })
@@ -288,6 +311,7 @@ describe("boring-bridge-holder", () => {
     const tx = await program.methods
       .updateStrategist(newStrategist.publicKey)
     .accounts({
+      // @ts-ignore
       boringAccount: boringAccount,
       signer: owner.publicKey,
     })
@@ -337,8 +361,10 @@ describe("boring-bridge-holder", () => {
     // Should fail when called by old strategist
     try {
       await program.methods
+        // @ts-ignore
         .transferRemote(destinationDomain, evmRecipient, decimals, amount)
         .accounts({
+          // @ts-ignore
           boringAccount: boringAccount,
           signer: strategist.publicKey,
           targetProgram: configParams.targetProgram,
@@ -371,6 +397,7 @@ describe("boring-bridge-holder", () => {
     const tx0 = await program.methods
       .updateStrategist(strategist.publicKey)
       .accounts({
+          // @ts-ignore
           boringAccount: boringAccount,
           signer: owner.publicKey,
         })
@@ -423,8 +450,10 @@ describe("boring-bridge-holder", () => {
 
     try {
       await program.methods
+        // @ts-ignore
         .transferRemote(destinationDomain, evmRecipient, decimals, amount)
         .accounts({
+          // @ts-ignore
           boringAccount: boringAccount,
           signer: strategist.publicKey,
           targetProgram: invalidTargetProgram, // Using different target program
@@ -489,8 +518,10 @@ describe("boring-bridge-holder", () => {
 
     try {
       await program.methods
+        // @ts-ignore
         .transferRemote(destinationDomain, evmRecipient, decimals, amount)
         .accounts({
+          // @ts-ignore
           boringAccount: boringAccount,
           signer: strategist.publicKey,
           targetProgram: configParams.targetProgram,
@@ -556,8 +587,10 @@ describe("boring-bridge-holder", () => {
 
     try {
       await program.methods
+        // @ts-ignore
         .transferRemote(destinationDomain, evmRecipient, decimals, amount)
         .accounts({
+          // @ts-ignore
           boringAccount: boringAccount,
           signer: strategist.publicKey,
           targetProgram: configParams.targetProgram,
@@ -625,8 +658,10 @@ describe("boring-bridge-holder", () => {
 
     try {
       await program.methods
+        // @ts-ignore
         .transferRemote(destinationDomain, evmRecipient, decimals, amount)
         .accounts({
+          // @ts-ignore
           boringAccount: boringAccount,
           signer: strategist.publicKey,
           targetProgram: configParams.targetProgram,
@@ -685,8 +720,10 @@ describe("boring-bridge-holder", () => {
 
     try {
       await program.methods
+        // @ts-ignore
         .transferRemote(destinationDomain, evmRecipient, decimals, amount)
         .accounts({
+          // @ts-ignore
           boringAccount: boringAccount,
           signer: strategist.publicKey,
           targetProgram: configParams.targetProgram,
@@ -766,8 +803,10 @@ describe("boring-bridge-holder", () => {
 
     // 7. Execute the transfer
     const tx = await program.methods
-        .transferRemote(destinationDomain, evmRecipient, decimals, amount)
-        .accounts({
+      // @ts-ignore
+      .transferRemote(destinationDomain, evmRecipient, decimals, amount)
+      .accounts({
+            // @ts-ignore
             boringAccount: boringAccount,
             signer: strategist.publicKey,
             targetProgram: configParams.targetProgram,
@@ -799,12 +838,5 @@ describe("boring-bridge-holder", () => {
 
     // 8. Verify the transfer was successful
     await anchor.AnchorProvider.env().connection.confirmTransaction(tx);
-
-
-    // 8. Add verification checks
-    // TODO: What should we verify after the transfer?
-    // - Check token balance changed?
-    // - Check message was stored?
-    // - Check gas payment was made?
   });
 });
