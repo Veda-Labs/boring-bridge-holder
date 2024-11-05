@@ -5,7 +5,8 @@
   },
   "license": "UNLICENSED",
   "dependencies": {
-    "@coral-xyz/anchor": "0.30.1"
+    "@coral-xyz/anchor": "0.30.1",
+    "dotenv": "^16.4.5"
   },
   "devDependencies": {
     "@types/bn.js": "^5.1.0",
