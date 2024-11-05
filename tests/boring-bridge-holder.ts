@@ -49,10 +49,10 @@ describe("boring-bridge-holder", () => {
     Buffer.from(evmAddressHex, 'hex')
   ]);
   const decimals = new anchor.BN(6);
+  const amountToTransfer = 1_000_000_000;
 
   // Array of accounts to clone from mainnet
   const ACCOUNTS_TO_CLONE = [
-    // "TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb", // Token-2022 -> not needed? Seems like bankrun adds it automatically.
     "EitxJuv2iBjsg2d7jVy2LDC1e2zBrx4GB5Y9h2Ko3A9Y", // Mailbox Program
     "FKKDGYumoKjQjVEejff6MD1FpKuBs6SdgAobVdJdE21B", // Mailbox Outbox
     "HncL4avgJq8uH2cGaAUf5rF2SS2ZLKH3MEyq97WFNmv6", // Message Dispatch Authority
@@ -63,7 +63,6 @@ describe("boring-bridge-holder", () => {
     "84KCVv2ERnDShUepu5kCufm2nB8vdHnCCuWx4qbDKSTB", // Token PDA
     "ABb3i11z7wKoGCfeRQNQbVYWjAm7jG7HzZnDLV4RKRbK", // Token Sender
     "AKEWE7Bgh87GPp171b4cJPSSZfmZwQ3KaqYqXoKLNAEE", // Mint Authority
-    // "9hBaeLg5pnY3BxQRrL7mn36Tn2H72MRbcJp43hrc9LCE", // Target Program Data -> Loaded in when we run transferRemote test
   ];
 
   async function createAndProcessTransaction(
@@ -115,6 +114,41 @@ describe("boring-bridge-holder", () => {
   
     context.setAccount(ata, ataAccountInfo);
     return ata;
+  }
+
+  async function ensureAccountExists(address: PublicKey, name: string) {
+    console.log(`Checking ${name}: ${address.toString()}`);
+    let localAccount = await client.getAccount(address);
+    
+    if (!localAccount) {
+        console.log(`- Fetching ${name} from mainnet`);
+         localAccount = await connection.getAccountInfo(address);
+        if (!localAccount) {
+            throw new Error(`Account ${name} not found on mainnet`);
+        }
+        
+        context.setAccount(address, localAccount);
+    }
+    // If this is an executable account, we need to get its program data too
+    if (localAccount.executable) {
+        console.log(`- ${name} is executable, checking program data`);
+        const programDataAddress = new PublicKey(localAccount.data.slice(-32));
+        if (!programDataAddress) {
+            throw new Error(`No program data found for ${name}`);
+        }
+        
+        // Check if program data exists in bankrun
+        let localProgramData = await client.getAccount(programDataAddress);
+        if (!localProgramData) {
+            console.log(`- Fetching program data for ${name} from mainnet`);
+            localProgramData = await connection.getAccountInfo(programDataAddress);
+            if (!localProgramData) {
+                throw new Error(`Program data for ${name} not found on mainnet`);
+            }
+            context.setAccount(programDataAddress, localProgramData);
+        }
+    }
+    return localAccount;
   }
 
   before(async () => {
@@ -201,7 +235,7 @@ describe("boring-bridge-holder", () => {
     strategistAta = await setupATA(context, configParams.mintAuth, strategist.publicKey, 0);
 
     // Create ATA for boringAccount, but give it some tokens
-    boringAccountAta = await setupATA(context, configParams.mintAuth, boringAccount, 1000000);
+    boringAccountAta = await setupATA(context, configParams.mintAuth, boringAccount, amountToTransfer);
   });
 
   it("Is initialized!", async () => {
@@ -931,25 +965,26 @@ describe("boring-bridge-holder", () => {
   });
 
   it("Can transfer remote tokens", async () => {
-    const token2022Program = new PublicKey("TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb");
-    const token2022ProgramInfo = await client.getAccount(token2022Program);
-    expect(token2022ProgramInfo).to.exist;
-    const targetProgramExecutableData = new PublicKey("9hBaeLg5pnY3BxQRrL7mn36Tn2H72MRbcJp43hrc9LCE");
-    const localProgramInfoBefore = await client.getAccount(targetProgramExecutableData);
-    expect(localProgramInfoBefore).to.be.null;
+    // List of all accounts we need to check
+    const accountsToCheck = [
+      { address: configParams.token2022Program, name: "Token2022 Program" },
+      { address: configParams.targetProgram, name: "Target Program" },
+      { address: configParams.mailboxProgram, name: "Mailbox Program" },
+      { address: configParams.mailboxOutbox, name: "Mailbox Outbox" },
+      { address: configParams.messageDispatchAuthority, name: "Message Dispatch Authority" },
+      { address: configParams.igpProgram, name: "IGP Program" },
+      { address: configParams.igpProgramData, name: "IGP Program Data" },
+      { address: configParams.igpAccount, name: "IGP Account" },
+      { address: configParams.tokenSender, name: "Token Sender" },
+      { address: configParams.mintAuth, name: "Mint Authority" },
+      { address: configParams.tokenPda, name: "Token PDA" },
+    ];
 
-    // Load in the target program executable data.
-    const targetProgramExecutableDataInfo = await connection.getAccountInfo(targetProgramExecutableData);
-    context.setAccount(targetProgramExecutableData, targetProgramExecutableDataInfo);
-
-    const localProgramInfoAfter = await client.getAccount(targetProgramExecutableData);
-    expect(localProgramInfoAfter).to.exist;
-
-    const targetProgram = new PublicKey("EqRSt9aUDMKYKhzd1DGMderr3KNp29VZH3x5P7LFTC8m");
-    const targetProgramInfo = await client.getAccount(targetProgram);
-    console.log("Target Program Info:", targetProgramInfo);
-    console.log("Target program Data Account:", targetProgramExecutableDataInfo);
-    expect(targetProgramInfo).to.exist;
+    // Check all accounts
+    console.log("Checking all required accounts...");
+    for (const account of accountsToCheck) {
+      await ensureAccountExists(account.address, account.name);
+    }
 
     // 1. Create a unique message account for this transfer
     const uniqueMessage = anchor.web3.Keypair.generate();
@@ -978,7 +1013,7 @@ describe("boring-bridge-holder", () => {
     );
 
     // 5. Set up the transfer amount (as a 32-byte array)
-    const amount = new anchor.BN(10);
+    const amount = new anchor.BN(amountToTransfer);
 
     // 7. Execute the transfer
     const ix = await program.methods
@@ -1019,6 +1054,7 @@ describe("boring-bridge-holder", () => {
     // This tx should succeed, but bankrun thinks the program is not deployed, yet the expects above succeed.
     // expect(txResult.result).to.be.null;
     expect(txResult.result).to.exist;
+    console.log(txResult.meta.logMessages);
     // Make sure we errored from the target program not being deployed.
     const errorLog = txResult.meta.logMessages.find(log =>
       log.includes("Program is not deployed")
