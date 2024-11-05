@@ -1,23 +1,29 @@
 import { BoringBridgeHolder } from "../target/types/boring_bridge_holder";
-import { Program } from "@coral-xyz/anchor";
+import { Program, web3 } from "@coral-xyz/anchor";
 import 'dotenv/config';
 import { readFileSync } from 'fs';
 import { join } from 'path';
 
 const anchor = require("@coral-xyz/anchor");
 const provider = anchor.AnchorProvider.env();
-// Configure client to use the provider.
 anchor.setProvider(provider);
 
-// Get program ID and wallet from provider
 const program = anchor.workspace.BoringBridgeHolder as Program<BoringBridgeHolder>;
 
-console.log("Initializing...");
+async function main() {
+  console.log("Updating configuration...");
   
-try {
-  const creator = provider.wallet;
-  const owner = provider.wallet;
-  const strategist = provider.wallet;
+  try {
+    const creator = provider.wallet;
+    
+    // Find the boring account PDA
+    const [boringAccount] = web3.PublicKey.findProgramAddressSync(
+      [
+        Buffer.from("boring_state"),
+        creator.publicKey.toBuffer()
+      ],
+      program.programId
+    );
 
   // Read the config file
   const config = JSON.parse(readFileSync(join(__dirname, 'config.json'), 'utf8'));
@@ -31,7 +37,7 @@ try {
   const evmRecipient = Array.from(evmRecipientBuffer);
 
   // Initialize configParams
-  let configParams = {
+  let newConfig = {
     targetProgram: new anchor.web3.PublicKey(config.targetProgram),
     noop: new anchor.web3.PublicKey(config.noop),
     tokenPda: new anchor.web3.PublicKey(config.tokenPda),
@@ -49,35 +55,30 @@ try {
     decimals: new anchor.BN(config.decimals),
   }
 
-  // Find the boring account PDA
-  const [boringAccount] = anchor.web3.PublicKey.findProgramAddressSync(
-    [
-      Buffer.from("boring_state"),
-      creator.publicKey.toBuffer()
-    ],
-    program.programId
-  );
-  program.methods
-    .initialize(
-      owner.publicKey,
-      strategist.publicKey,
-      configParams,
-    )
-  .accounts({
-    // @ts-ignore
-    boringAccount: boringAccount,
-    signer: owner.publicKey,
-    systemProgram: anchor.web3.SystemProgram.programId,
-  })
-  .signers([])
-  .rpc().then(tx => anchor.AnchorProvider.env().connection.confirmTransaction(tx).then(result => {
-    if (result.value.err) {
-      console.error("Initialization failed:", result.value.err);
+    const tx = await program.methods
+      .updateConfiguration(newConfig)
+      .accounts({
+        // @ts-ignore
+        boringAccount: boringAccount,
+        signer: provider.wallet.publicKey,
+      })
+      .rpc();
+
+    const confirmation = await provider.connection.confirmTransaction(tx);
+    
+    if (confirmation.value.err) {
+      console.error("Configuration update failed:", confirmation.value.err);
     } else {
-      console.log("Initialization successful: ", tx);
+      console.log("Configuration update successful:", tx);
     }
-  }));
-} catch (error) {
-  console.error("Initialization failed:", error);
-  throw error;
+
+  } catch (error) {
+    console.error("Configuration update failed:", error);
+    throw error;
   }
+}
+
+main().catch((error) => {
+  console.error(error);
+  process.exit(1);
+});
