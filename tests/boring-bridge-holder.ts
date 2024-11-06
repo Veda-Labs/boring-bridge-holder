@@ -470,7 +470,7 @@ describe("boring-bridge-holder", () => {
     expect(txResult.result).to.exist;
     const errorLog = txResult.meta.logMessages.find(log =>
       log.includes("Error Code: Unauthorized") &&
-      log.includes("Error Message: OnlyOwner")
+      log.includes("Error Message: Unauthorized")
     )
     expect(errorLog).to.exist;
 
@@ -497,7 +497,7 @@ describe("boring-bridge-holder", () => {
     expect(txResult.result).to.exist;
     const errorLog = txResult.meta.logMessages.find(log =>
       log.includes("Error Code: Unauthorized") &&
-      log.includes("Error Message: OnlyOwner")
+      log.includes("Error Message: Unauthorized")
     )
     expect(errorLog).to.exist;
 
@@ -524,7 +524,7 @@ describe("boring-bridge-holder", () => {
     expect(txResult.result).to.exist;
     const errorLog = txResult.meta.logMessages.find(log =>
       log.includes("Error Code: Unauthorized") &&
-      log.includes("Error Message: OnlyOwner")
+      log.includes("Error Message: Unauthorized")
     )
     expect(errorLog).to.exist;
 
@@ -590,7 +590,7 @@ describe("boring-bridge-holder", () => {
     expect(txResult1.result).to.exist;
     const errorLog = txResult1.meta.logMessages.find(log =>
       log.includes("Error Code: Unauthorized") &&
-      log.includes("Error Message: OnlyOwner")
+      log.includes("Error Message: Unauthorized")
     )
     expect(errorLog).to.exist;
 

@@ -13,6 +13,19 @@ use crate::events::*;
 
 declare_id!("AWzzXzsLQvddsYdphCV6CTcr5ALXtg8AAtZXTqbUcVBF");
 
+/// Checks that the signer is the same as the authorized key
+///
+/// # Arguments
+/// * `signer` - The public key of the signer
+/// * `allowed` - The public key of the allowed caller
+///
+/// # Returns
+/// * `Result<()>` - Result indicating success or containing an error
+fn requires_auth(signer: Pubkey, allowed: Pubkey) -> Result<()> {
+    require_keys_eq!(signer, allowed, CustomError::Unauthorized);
+    Ok(())
+}
+
 #[program]
 mod boring_bridge_holder {
     use super::*;
@@ -87,11 +100,7 @@ mod boring_bridge_holder {
         // Check that signer is the current owner
         let boring_account = &mut ctx.accounts.boring_account;
         let old_owner = boring_account.owner;
-        require_keys_eq!(
-            ctx.accounts.signer.key(),
-            old_owner,
-            CustomError::Unauthorized
-        );
+        requires_auth(ctx.accounts.signer.key(), old_owner)?;
 
         // Update the owner
         boring_account.owner = new_owner;
@@ -119,11 +128,7 @@ mod boring_bridge_holder {
         // Check that signer is the current owner
         let boring_account = &mut ctx.accounts.boring_account;
         let old_strategist = boring_account.strategist;
-        require_keys_eq!(
-            ctx.accounts.signer.key(),
-            boring_account.owner,
-            CustomError::Unauthorized
-        );
+        requires_auth(ctx.accounts.signer.key(), boring_account.owner)?;
 
         // Update the owner
         boring_account.strategist = new_strategist;
@@ -153,11 +158,7 @@ mod boring_bridge_holder {
     ) -> Result<()> {
         // Check that signer is the current owner
         let boring_account = &mut ctx.accounts.boring_account;
-        require_keys_eq!(
-            ctx.accounts.signer.key(),
-            boring_account.owner,
-            CustomError::Unauthorized
-        );
+        requires_auth(ctx.accounts.signer.key(), boring_account.owner)?;
 
         // Update the configuration hash
         boring_account.config_hash = config.compute_hash();
@@ -212,11 +213,10 @@ mod boring_bridge_holder {
             ctx.accounts.signer.key(),
             ctx.accounts.boring_account.strategist
         );
-        require_keys_eq!(
+        requires_auth(
             ctx.accounts.signer.key(),
             ctx.accounts.boring_account.strategist,
-            CustomError::Unauthorized
-        );
+        )?;
 
         // Verify configuration matches stored hash
         msg!("Verifying configuration matches stored hash");
@@ -462,7 +462,7 @@ pub struct BoringState {
 // Errors
 #[error_code]
 pub enum CustomError {
-    #[msg("OnlyOwner")]
+    #[msg("Unauthorized")]
     Unauthorized,
     #[msg("Invalid Configuration")]
     InvalidConfiguration,
