@@ -121,6 +121,34 @@ describe("boring-bridge-holder", () => {
     return ata;
   }
 
+  function generateMessagePDAs(mailboxProgram: anchor.web3.PublicKey, igpProgram: anchor.web3.PublicKey) {
+    const uniqueMessage = anchor.web3.Keypair.generate();
+    
+    const [messageStoragePda] = anchor.web3.PublicKey.findProgramAddressSync(
+      [
+        Buffer.from("hyperlane"),
+        Buffer.from("-"),
+        Buffer.from("dispatched_message"),
+        Buffer.from("-"),
+        uniqueMessage.publicKey.toBuffer()
+      ],
+      mailboxProgram
+    );
+  
+    const [gasPaymentPda] = anchor.web3.PublicKey.findProgramAddressSync(
+      [
+        Buffer.from("hyperlane_igp"),
+        Buffer.from("-"),
+        Buffer.from("gas_payment"),
+        Buffer.from("-"),
+        uniqueMessage.publicKey.toBuffer()
+      ],
+      igpProgram
+    );
+  
+    return { uniqueMessage, messageStoragePda, gasPaymentPda };
+  }
+
   before(async () => {
     connection = new Connection("https://eclipse.helius-rpc.com");
 
@@ -522,31 +550,8 @@ describe("boring-bridge-holder", () => {
     // Expect the tx to succeed.
     expect(txResult0.result).to.be.null;
 
-    // This should be a random key pair.
-    const uniqueMessage = anchor.web3.Keypair.generate();
-
-    // Derive PDAs using unique message
-    const messageStoragePda = anchor.web3.PublicKey.findProgramAddressSync(
-      [
-        Buffer.from("hyperlane"),
-        Buffer.from("-"),
-        Buffer.from("dispatched_message"),
-        Buffer.from("-"),
-        uniqueMessage.publicKey.toBuffer()
-      ],
-      configParams.mailboxProgram
-    );
-  
-    const gasPaymentPda = anchor.web3.PublicKey.findProgramAddressSync(
-      [
-        Buffer.from("hyperlane_igp"),
-        Buffer.from("-"),
-        Buffer.from("gas_payment"),
-        Buffer.from("-"),
-        uniqueMessage.publicKey.toBuffer()
-      ],
-      configParams.igpProgram
-    );
+    // Generate message keypair and pdas.
+    const { uniqueMessage, messageStoragePda, gasPaymentPda } = generateMessagePDAs(configParams.mailboxProgram, configParams.igpProgram);
 
     const amount = new anchor.BN(1000);
 
@@ -609,30 +614,8 @@ describe("boring-bridge-holder", () => {
   });
 
   it("Strategist cannot transfer remote with invalid config", async () => {
-    const uniqueMessage = anchor.web3.Keypair.generate();
-    
-    // Derive PDAs
-    const [messageStoragePda] = anchor.web3.PublicKey.findProgramAddressSync(
-      [
-        Buffer.from("hyperlane"),
-        Buffer.from("-"),
-        Buffer.from("dispatched_message"),
-        Buffer.from("-"),
-        uniqueMessage.publicKey.toBuffer()
-      ],
-      configParams.mailboxProgram
-    );
-    
-    const [gasPaymentPda] = anchor.web3.PublicKey.findProgramAddressSync(
-      [
-        Buffer.from("hyperlane_igp"),
-        Buffer.from("-"),
-        Buffer.from("gas_payment"),
-        Buffer.from("-"),
-        uniqueMessage.publicKey.toBuffer()
-      ],
-      configParams.igpProgram
-    );
+    // Generate message keypair and pdas.
+    const { uniqueMessage, messageStoragePda, gasPaymentPda } = generateMessagePDAs(configParams.mailboxProgram, configParams.igpProgram);
 
     const amount = new anchor.BN(1000);
 
@@ -681,25 +664,16 @@ describe("boring-bridge-holder", () => {
   });
 
   it("Fails with malformed message storage PDA", async () => {
-    const uniqueMessage = anchor.web3.Keypair.generate();
-    // Create an incorrect message storage PDA by using wrong seeds
-    const [messageStoragePda] = anchor.web3.PublicKey.findProgramAddressSync(
+    // Generate message keypair and pdas.
+    let { uniqueMessage, messageStoragePda, gasPaymentPda } = generateMessagePDAs(configParams.mailboxProgram, configParams.igpProgram);
+    
+    // Overwrite message storage PDA with one using wrong seeds.
+    [messageStoragePda] = anchor.web3.PublicKey.findProgramAddressSync(
       [
         Buffer.from("wrong_seed"),
         uniqueMessage.publicKey.toBuffer()
       ],
       configParams.mailboxProgram
-    );
-    
-    const [gasPaymentPda] = anchor.web3.PublicKey.findProgramAddressSync(
-      [
-        Buffer.from("hyperlane_igp"),
-        Buffer.from("-"),
-        Buffer.from("gas_payment"),
-        Buffer.from("-"),
-        uniqueMessage.publicKey.toBuffer()
-      ],
-      configParams.igpProgram
     );
 
     const amount = new anchor.BN(1000);
@@ -747,21 +721,11 @@ describe("boring-bridge-holder", () => {
   });
 
   it("Fails with malformed gas payment PDA", async () => {
-    const uniqueMessage = anchor.web3.Keypair.generate();
-    
-    const [messageStoragePda] = anchor.web3.PublicKey.findProgramAddressSync(
-      [
-        Buffer.from("hyperlane"),
-        Buffer.from("-"),
-        Buffer.from("dispatched_message"),
-        Buffer.from("-"),
-        uniqueMessage.publicKey.toBuffer()
-      ],
-      configParams.mailboxProgram
-    );
-    
-    // Create an incorrect gas payment PDA by using wrong seeds
-    const [gasPaymentPda] = anchor.web3.PublicKey.findProgramAddressSync(
+    // Generate message keypair and pdas.
+    let { uniqueMessage, messageStoragePda, gasPaymentPda } = generateMessagePDAs(configParams.mailboxProgram, configParams.igpProgram);
+
+    // Overwrite gas payment PDA with one using wrong seeds.
+    [gasPaymentPda] = anchor.web3.PublicKey.findProgramAddressSync(
       [
         Buffer.from("wrong_seed"),
         uniqueMessage.publicKey.toBuffer()
@@ -814,29 +778,8 @@ describe("boring-bridge-holder", () => {
   });
 
   it("Fails with malformed boring account ATA", async () => {
-    const uniqueMessage = anchor.web3.Keypair.generate();
-    
-    const [messageStoragePda] = anchor.web3.PublicKey.findProgramAddressSync(
-      [
-        Buffer.from("hyperlane"),
-        Buffer.from("-"),
-        Buffer.from("dispatched_message"),
-        Buffer.from("-"),
-        uniqueMessage.publicKey.toBuffer()
-      ],
-      configParams.mailboxProgram
-    );
-    
-    const [gasPaymentPda] = anchor.web3.PublicKey.findProgramAddressSync(
-      [
-        Buffer.from("hyperlane_igp"),
-        Buffer.from("-"),
-        Buffer.from("gas_payment"),
-        Buffer.from("-"),
-        uniqueMessage.publicKey.toBuffer()
-      ],
-      configParams.igpProgram
-    );
+    // Generate message keypair and pdas.
+    const { uniqueMessage, messageStoragePda, gasPaymentPda } = generateMessagePDAs(configParams.mailboxProgram, configParams.igpProgram);
 
     const amount = new anchor.BN(1000);
 
@@ -883,29 +826,8 @@ describe("boring-bridge-holder", () => {
   });
 
   it("Fails with malformed strategist ATA", async () => {
-    const uniqueMessage = anchor.web3.Keypair.generate();
-    
-    const [messageStoragePda] = anchor.web3.PublicKey.findProgramAddressSync(
-      [
-        Buffer.from("hyperlane"),
-        Buffer.from("-"),
-        Buffer.from("dispatched_message"),
-        Buffer.from("-"),
-        uniqueMessage.publicKey.toBuffer()
-      ],
-      configParams.mailboxProgram
-    );
-    
-    const [gasPaymentPda] = anchor.web3.PublicKey.findProgramAddressSync(
-      [
-        Buffer.from("hyperlane_igp"),
-        Buffer.from("-"),
-        Buffer.from("gas_payment"),
-        Buffer.from("-"),
-        uniqueMessage.publicKey.toBuffer()
-      ],
-      configParams.igpProgram
-    );
+    // Generate message keypair and pdas.
+    const { uniqueMessage, messageStoragePda, gasPaymentPda } = generateMessagePDAs(configParams.mailboxProgram, configParams.igpProgram);
 
     const amount = new anchor.BN(1000);
 
@@ -952,36 +874,13 @@ describe("boring-bridge-holder", () => {
   });
 
   it("Can transfer remote tokens", async () => {
-    // 1. Create a unique message account for this transfer
-    const uniqueMessage = anchor.web3.Keypair.generate();
+    // Generate message keypair and pdas.
+    const { uniqueMessage, messageStoragePda, gasPaymentPda } = generateMessagePDAs(configParams.mailboxProgram, configParams.igpProgram);
 
-    // 2. Derive the PDAs we need
-    const [messageStoragePda] = anchor.web3.PublicKey.findProgramAddressSync(
-        [
-            Buffer.from("hyperlane"),
-            Buffer.from("-"),
-            Buffer.from("dispatched_message"),
-            Buffer.from("-"),
-            uniqueMessage.publicKey.toBuffer()
-        ],
-        configParams.mailboxProgram
-    );
-    
-    const [gasPaymentPda] = anchor.web3.PublicKey.findProgramAddressSync(
-        [
-            Buffer.from("hyperlane_igp"),
-            Buffer.from("-"),
-            Buffer.from("gas_payment"),
-            Buffer.from("-"),
-            uniqueMessage.publicKey.toBuffer()
-        ],
-        configParams.igpProgram
-    );
-
-    // 5. Set up the transfer amount (as a 32-byte array)
+    // Set transfer amount.
     const amount = new anchor.BN(amountToTransfer);
 
-    // 7. Execute the transfer
+    // Execute the transfer
     const ix = await program.methods
       // @ts-ignore
       .transferRemote(destinationDomain, evmRecipient, decimals, amount)
