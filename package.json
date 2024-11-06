@@ -6,7 +6,10 @@
   "license": "UNLICENSED",
   "dependencies": {
     "@coral-xyz/anchor": "0.30.1",
-    "dotenv": "^16.4.5"
+    "@solana/spl-token": "^0.4.9",
+    "anchor-bankrun": "^0.5.0",
+    "dotenv": "^16.4.5",
+    "solana-bankrun": "^0.4.0"
   },
   "devDependencies": {
     "@types/bn.js": "^5.1.0",
