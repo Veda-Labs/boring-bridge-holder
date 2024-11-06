@@ -41,9 +41,12 @@ describe("boring-bridge-holder", () => {
   
   // Constants that don't depend on async operations
   const PROJECT_DIRECTORY = ""; // Leave empty if using default anchor project
-  const ATA_PROGRAM_ID = new anchor.web3.PublicKey('ATokenGPvbdGVxr1b2hvZbsiqW5xWH25efTNsLJA8knL');
+  const HYPERLANE_ROUTER_PROGRAM_ID = new anchor.web3.PublicKey('EqRSt9aUDMKYKhzd1DGMderr3KNp29VZH3x5P7LFTC8m');
+  const HYPERLANE_MAILBOX_PROGRAM_ID = new anchor.web3.PublicKey('EitxJuv2iBjsg2d7jVy2LDC1e2zBrx4GB5Y9h2Ko3A9Y');
+  const HYPERLANE_IGP_PROGRAM_ID = new anchor.web3.PublicKey('Hs7KVBU67nBnWhDPZkEFwWqrFMUfJbmY2DQ4gmCZfaZp');
   const destinationDomain = new anchor.BN(1);
-  const evmAddressHex = "0x0463E60C7cE10e57911AB7bD1667eaa21de3e79b".slice(2);
+  const evmAddressRaw = "0x0463E60C7cE10e57911AB7bD1667eaa21de3e79b";
+  const evmAddressHex = evmAddressRaw.slice(2);
   const evmRecipient = Buffer.concat([
     Buffer.alloc(12, 0),
     Buffer.from(evmAddressHex, 'hex')
@@ -53,13 +56,10 @@ describe("boring-bridge-holder", () => {
 
   // Array of accounts to clone from mainnet
   const ACCOUNTS_TO_CLONE = [
-    "EitxJuv2iBjsg2d7jVy2LDC1e2zBrx4GB5Y9h2Ko3A9Y", // Mailbox Program
     "FKKDGYumoKjQjVEejff6MD1FpKuBs6SdgAobVdJdE21B", // Mailbox Outbox
     "HncL4avgJq8uH2cGaAUf5rF2SS2ZLKH3MEyq97WFNmv6", // Message Dispatch Authority
-    "Hs7KVBU67nBnWhDPZkEFwWqrFMUfJbmY2DQ4gmCZfaZp", // IGP Program
     "FvGvXJf6bd2wx8FxzsYNzd2uHaPy7JTkmuKiVvSTt7jm", // IGP Program Data
     "3Wp4qKkgf4tjXz1soGyTSndCgBPLZFSrZkiDZ8Qp9EEj", // IGP Account
-    "EqRSt9aUDMKYKhzd1DGMderr3KNp29VZH3x5P7LFTC8m", // Target Program
     "84KCVv2ERnDShUepu5kCufm2nB8vdHnCCuWx4qbDKSTB", // Token PDA
     "ABb3i11z7wKoGCfeRQNQbVYWjAm7jG7HzZnDLV4RKRbK", // Token Sender
     "AKEWE7Bgh87GPp171b4cJPSSZfmZwQ3KaqYqXoKLNAEE", // Mint Authority
@@ -76,6 +76,11 @@ describe("boring-bridge-holder", () => {
     tx.recentBlockhash = latestBlockhash;
     tx.add(instruction);
     tx.feePayer = payer.publicKey;
+    tx.add(
+      ComputeBudgetProgram.setComputeUnitLimit({
+        units: 400_000,
+      })
+    );
     tx.sign(payer, ...additionalSigners);
     return await client.tryProcessTransaction(tx);
   }
@@ -114,41 +119,6 @@ describe("boring-bridge-holder", () => {
   
     context.setAccount(ata, ataAccountInfo);
     return ata;
-  }
-
-  async function ensureAccountExists(address: PublicKey, name: string) {
-    console.log(`Checking ${name}: ${address.toString()}`);
-    let localAccount = await client.getAccount(address);
-    
-    if (!localAccount) {
-        console.log(`- Fetching ${name} from mainnet`);
-         localAccount = await connection.getAccountInfo(address);
-        if (!localAccount) {
-            throw new Error(`Account ${name} not found on mainnet`);
-        }
-        
-        context.setAccount(address, localAccount);
-    }
-    // If this is an executable account, we need to get its program data too
-    if (localAccount.executable) {
-        console.log(`- ${name} is executable, checking program data`);
-        const programDataAddress = new PublicKey(localAccount.data.slice(-32));
-        if (!programDataAddress) {
-            throw new Error(`No program data found for ${name}`);
-        }
-        
-        // Check if program data exists in bankrun
-        let localProgramData = await client.getAccount(programDataAddress);
-        if (!localProgramData) {
-            console.log(`- Fetching program data for ${name} from mainnet`);
-            localProgramData = await connection.getAccountInfo(programDataAddress);
-            if (!localProgramData) {
-                throw new Error(`Program data for ${name} not found on mainnet`);
-            }
-            context.setAccount(programDataAddress, localProgramData);
-        }
-    }
-    return localAccount;
   }
 
   before(async () => {
@@ -196,7 +166,24 @@ describe("boring-bridge-holder", () => {
     const allAccounts = [...baseAccounts, ...clonedAccounts];
 
     // Set up bankrun context
-    context = await startAnchor(PROJECT_DIRECTORY, [], allAccounts);
+    context = await startAnchor(
+      PROJECT_DIRECTORY,
+      [
+        {
+          name: "hyperlane_router",
+          programId: HYPERLANE_ROUTER_PROGRAM_ID,
+        },
+        {
+          name: "hyperlane_mailbox",
+          programId: HYPERLANE_MAILBOX_PROGRAM_ID,
+        },
+        {
+          name: "hyperlane_igp",
+          programId: HYPERLANE_IGP_PROGRAM_ID,
+        }
+      ],
+      allAccounts
+    );
     client = context.banksClient;
     provider = new BankrunProvider(context);
     creator = context.payer;
@@ -965,27 +952,6 @@ describe("boring-bridge-holder", () => {
   });
 
   it("Can transfer remote tokens", async () => {
-    // List of all accounts we need to check
-    const accountsToCheck = [
-      { address: configParams.token2022Program, name: "Token2022 Program" },
-      { address: configParams.targetProgram, name: "Target Program" },
-      { address: configParams.mailboxProgram, name: "Mailbox Program" },
-      { address: configParams.mailboxOutbox, name: "Mailbox Outbox" },
-      { address: configParams.messageDispatchAuthority, name: "Message Dispatch Authority" },
-      { address: configParams.igpProgram, name: "IGP Program" },
-      { address: configParams.igpProgramData, name: "IGP Program Data" },
-      { address: configParams.igpAccount, name: "IGP Account" },
-      { address: configParams.tokenSender, name: "Token Sender" },
-      { address: configParams.mintAuth, name: "Mint Authority" },
-      { address: configParams.tokenPda, name: "Token PDA" },
-    ];
-
-    // Check all accounts
-    console.log("Checking all required accounts...");
-    for (const account of accountsToCheck) {
-      await ensureAccountExists(account.address, account.name);
-    }
-
     // 1. Create a unique message account for this transfer
     const uniqueMessage = anchor.web3.Keypair.generate();
 
@@ -1020,45 +986,41 @@ describe("boring-bridge-holder", () => {
       // @ts-ignore
       .transferRemote(destinationDomain, evmRecipient, decimals, amount)
       .accounts({
-            // @ts-ignore
-            boringAccount: boringAccount,
-            signer: strategist.publicKey,
-            targetProgram: configParams.targetProgram,
-            systemProgram: anchor.web3.SystemProgram.programId,
-            noop: configParams.noop,
-            tokenPda: configParams.tokenPda,
-            mailboxProgram: configParams.mailboxProgram,
-            mailboxOutbox: configParams.mailboxOutbox,
-            messageDispatchAuthority: configParams.messageDispatchAuthority,
-            uniqueMessage: uniqueMessage.publicKey,
-            messageStoragePda: messageStoragePda,
-            igpProgram: configParams.igpProgram,
-            igpProgramData: configParams.igpProgramData,
-            gasPaymentPda: gasPaymentPda,
-            igpAccount: configParams.igpAccount,
-            tokenSender: configParams.tokenSender,
-            token2022: configParams.token2022Program,
-            mintAuth: configParams.mintAuth,
-            boringAccountAta: boringAccountAta,
-            strategistAta: strategistAta,
-        })
-        .signers([strategist, uniqueMessage])
-        .preInstructions([
-          ComputeBudgetProgram.setComputeUnitLimit({ 
-              units: 1_000_000  // Increase compute units
-          })
-      ])
+        // @ts-ignore
+        boringAccount: boringAccount,
+        signer: strategist.publicKey,
+        targetProgram: configParams.targetProgram,
+        systemProgram: anchor.web3.SystemProgram.programId,
+        noop: configParams.noop,
+        tokenPda: configParams.tokenPda,
+        mailboxProgram: configParams.mailboxProgram,
+        mailboxOutbox: configParams.mailboxOutbox,
+        messageDispatchAuthority: configParams.messageDispatchAuthority,
+        uniqueMessage: uniqueMessage.publicKey,
+        messageStoragePda: messageStoragePda,
+        igpProgram: configParams.igpProgram,
+        igpProgramData: configParams.igpProgramData,
+        gasPaymentPda: gasPaymentPda,
+        igpAccount: configParams.igpAccount,
+        tokenSender: configParams.tokenSender,
+        token2022: configParams.token2022Program,
+        mintAuth: configParams.mintAuth,
+        boringAccountAta: boringAccountAta,
+        strategistAta: strategistAta,
+      })
+      .signers([strategist, uniqueMessage])
       .instruction();
     let txResult = await createAndProcessTransaction(client, creator, ix, [creator, strategist, uniqueMessage]);
 
-    // This tx should succeed, but bankrun thinks the program is not deployed, yet the expects above succeed.
-    // expect(txResult.result).to.be.null;
-    expect(txResult.result).to.exist;
-    console.log(txResult.meta.logMessages);
-    // Make sure we errored from the target program not being deployed.
-    const errorLog = txResult.meta.logMessages.find(log =>
-      log.includes("Program is not deployed")
-    )
-    expect(errorLog).to.exist;
+    // Expect the tx to succeed.
+    expect(txResult.result).to.be.null;
+
+    // Format the EVM recipient for log matching (first 4 and last 4 chars)
+    const formattedRecipient =  "0x0000…" + evmAddressRaw.slice(-4);
+
+    // Check for the expected log message
+    const expectedLog = `Warp route transfer completed to destination: ${destinationDomain}, recipient: ${formattedRecipient}, remote_amount: ${amountToTransfer}`;
+    const foundLog = txResult.meta.logMessages.find(log => log.includes(expectedLog));
+    expect(foundLog).to.exist;
   });
 });
