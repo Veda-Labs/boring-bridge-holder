@@ -83,18 +83,11 @@ anchor build
 
 ## Testing
 
-> **Note:** Tests are currently dependent on having the correct keypair saved on your computer. Tests will fail if you use a different keypair because the PDA (Program Derived Address) for the boring account will be derived differently.
+Run the tests:
 
-1. Start a local Solana test validator:
-
-   ```bash
-   solana-test-validator
-   ```
-
-2. Run the tests:
-   ```bash
-    anchor test
-   ```
+```bash
+anchor test
+```
 
 ## Deploying
 
