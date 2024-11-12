@@ -19,10 +19,9 @@ console.log("Transferring remote...");
 
 try {
   // The amount to transfer
-  let amount = new anchor.BN(1000);
+  let amount = new anchor.BN(100000); // 0.0001 weETHs with 9 decimals
+  const creator = new anchor.web3.PublicKey('DuheUFDBEGh1xKKvCvcTPQwA8eR3oo58kzVpB54TW5TP');
 
-  const creator = provider.wallet;
-  const owner = provider.wallet;
   const strategist = provider.wallet;
 
   // Read the config file
@@ -63,7 +62,7 @@ try {
   const [boringAccount] = anchor.web3.PublicKey.findProgramAddressSync(
     [
       Buffer.from("boring_state"),
-      creator.publicKey.toBuffer()
+      creator.toBuffer()
     ],
     program.programId
   );
@@ -120,7 +119,7 @@ try {
     .accounts({
       // @ts-ignore
       boringAccount: boringAccount,
-      signer: owner.publicKey,
+      signer: strategist.publicKey,
       targetProgram: configParams.targetProgram,
       systemProgram: anchor.web3.SystemProgram.programId,
       noop: configParams.noop,
