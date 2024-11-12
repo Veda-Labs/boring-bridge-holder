@@ -13,7 +13,6 @@ A Solana program that facilitates token bridging using Hyperlane's infrastructur
 ### Strategist Role
 
 - The strategist is implemented as a normal externally owned account (not a PDA)
-- This design choice is necessary since PDAs with data cannot transfer lamports
 - The strategist has limited control, only being able to:
   1. Initiate transfers up to the current token balance
   2. Pay bridge fees using their own lamports
