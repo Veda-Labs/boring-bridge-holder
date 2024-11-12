@@ -4,6 +4,7 @@ use anchor_spl::token_interface::TokenAccount;
 use borsh::{BorshDeserialize, BorshSerialize};
 use solana_program::hash::hash;
 use solana_program::pubkey::Pubkey;
+use std::mem::size_of;
 
 pub mod instructions;
 use crate::instructions::transfer_remote;
@@ -249,7 +250,7 @@ pub struct Initialize<'info> {
     #[account(
         init,
         payer = signer,
-        space = 8 + 32 + 32 + 32 + 32 + 1,
+        space = size_of::<BoringState>() + 8,
         seeds = [b"boring_state", signer.key().as_ref()],
         bump
     )]
