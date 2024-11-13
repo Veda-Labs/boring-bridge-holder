@@ -223,8 +223,8 @@ Before running any scripts:
 - Message Dispatch Authority
 - IGP Program
 - IGP Program Data
-- IGP Account
-- Token Sender
+- IGP Account **(This is really the overhead IGP program)**
+- Token Sender **(This is really the IGP account)**
 - Token 2022 Program
 - Mint Authority
 - Destination Domain

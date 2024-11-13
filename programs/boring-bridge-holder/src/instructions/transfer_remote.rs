@@ -138,22 +138,58 @@ fn create_account_metas<'info>(accounts: &TransferRemoteContext) -> Vec<AccountM
 /// Creates the account infos for the transfer remote instruction
 fn create_account_infos<'info>(accounts: &TransferRemoteContext<'info>) -> Vec<AccountInfo<'info>> {
     let mut infos = Vec::with_capacity(17);
+    // 0.  `[executable]` The system program.
     infos.push(accounts.system_program.to_account_info());
+
+    // 1.  `[executable]` The spl_noop program.
     infos.push(accounts.noop.to_account_info());
+
+    // 2.  `[]` The token PDA account.
     infos.push(accounts.token_pda.to_account_info());
+
+    // 3.  `[executable]` The mailbox program.
     infos.push(accounts.mailbox_program.to_account_info());
+
+    // 4.  `[writeable]` The mailbox outbox account.
     infos.push(accounts.mailbox_outbox.to_account_info());
+
+    // 5.  `[]` Message dispatch authority.
     infos.push(accounts.message_dispatch_authority.to_account_info());
+
+    // 6.  `[signer]` The token sender and mailbox payer.
     infos.push(accounts.signer.to_account_info());
+
+    // 7.  `[signer]` Unique message / gas payment account.
     infos.push(accounts.unique_message.to_account_info());
+
+    // 8.  `[writeable]` Message storage PDA.
     infos.push(accounts.message_storage_pda.to_account_info());
+
+    //     ---- If using an IGP ----
+    // 9.  `[executable]` The IGP program.
     infos.push(accounts.igp_program.to_account_info());
+
+    // 10. `[writeable]` The IGP program data.
     infos.push(accounts.igp_program_data.to_account_info());
+
+    // 11. `[writeable]` Gas payment PDA.
     infos.push(accounts.gas_payment_pda.to_account_info());
+
+    // 12. `[]` OPTIONAL - The Overhead IGP program, if the configured IGP is an Overhead IGP.
     infos.push(accounts.igp_account.to_account_info());
+
+    // 13. `[writeable]` The IGP account.
     infos.push(accounts.token_sender.to_account_info());
+
+    //      ---- End if ----
+    // 14. `[executable]` The spl_token_2022 program.
     infos.push(accounts.token_2022.to_account_info());
+
+    // 15. `[writeable]` The mint / mint authority PDA account.
     infos.push(accounts.mint_auth.to_account_info());
+
+    // 16. `[writeable]` The token sender's associated token account, from which tokens will be burned.
     infos.push(accounts.strategist_ata.to_account_info());
+
     infos
 }
