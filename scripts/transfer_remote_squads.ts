@@ -4,10 +4,12 @@ import { ComputeBudgetProgram } from "@solana/web3.js";
 import 'dotenv/config';
 import { readFileSync } from 'fs';
 import { join } from 'path';
+import bs58 from 'bs58';
 
 // To run this do this
 // ts-node scripts/transfer_remote.ts
-
+async function main() {
+  try {
 const anchor = require("@coral-xyz/anchor");
 const provider = anchor.AnchorProvider.env();
 anchor.setProvider(provider);
@@ -15,15 +17,16 @@ anchor.setProvider(provider);
 // Get program ID and wallet from provider
 const program = anchor.workspace.BoringBridgeHolder as Program<BoringBridgeHolder>;
 
-console.log("Transferring remote...");
+console.log("Generating transfer remote base58 encoded transaction message...");
 
-try {
   // The amount to transfer
   let amount = new anchor.BN(100000); // 0.0001 weETHs with 9 decimals
   const creator = new anchor.web3.PublicKey('DuheUFDBEGh1xKKvCvcTPQwA8eR3oo58kzVpB54TW5TP');
 
-  const strategist = provider.wallet;
-
+  const strategist = new anchor.web3.PublicKey("J2V6fTUnxem8WLwWiofAuptFwP3sJNeKcT8SRWDDrQ4z");
+  
+  // Vault account
+  const feePayer = new anchor.web3.PublicKey("4Cj1s2ipALjJk9foQV4oDaZYCZwSsVkAShQL1KFVJG9b");
   // Read the config file
   const config = JSON.parse(readFileSync(join(__dirname, 'config.json'), 'utf8'));
 
@@ -102,14 +105,13 @@ try {
 
   const [strategistAta] = anchor.web3.PublicKey.findProgramAddressSync(
     [
-      strategist.publicKey.toBuffer(),
+      strategist.toBuffer(),
       configParams.token2022Program.toBuffer(),
       configParams.mintAuth.toBuffer(),
     ],
     ATA_PROGRAM_ID
   );
-
-  program.methods
+  const tx = await program.methods
     .transferRemote(
       destinationDomain,
       evmRecipient,
@@ -139,25 +141,31 @@ try {
       boringAccountAta,
       strategistAta,
     })
-    .signers([uniqueMessage])
-    .preInstructions([
-      ComputeBudgetProgram.setComputeUnitLimit({
-        units: 400_000 // Increase compute units
-      })
-    ])
-    .rpc()
-    .then(tx => 
-      anchor.AnchorProvider.env().connection.confirmTransaction(tx)
-        .then(result => {
-          if (result.value.err) {
-            console.error("Transfer remote failed:", result.value.err);
-          } else {
-            console.log("Transfer remote successful: ", tx);
-          }
-        })
-    );
+    .transaction();
+
+    // Get latest blockhash
+    const latestBlockhash = await provider.connection.getLatestBlockhash();
+    tx.recentBlockhash = latestBlockhash.blockhash;
+    tx.feePayer = feePayer;
+
+    // Encode the transaction
+    const serializedTransaction = tx.serializeMessage();
+    const encoded = bs58.encode(serializedTransaction);
+    
+    // Write to file
+    const fs = require('fs');
+    fs.writeFileSync('encoded_transaction.txt', encoded);
+    
+    console.log("\nEncoded transaction has been written to encoded_transaction.txt");
+    console.log("Length:", encoded.length);
 
 } catch (error) {
   console.error("Transfer remote failed:", error);
   throw error;
 }
+}
+
+main().catch( err => {
+  console.error("Error:", err);
+  process.exit(1);
+});

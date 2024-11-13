@@ -28,25 +28,18 @@ try {
 
   // Update strategist
   program.methods
-    .updateStrategist(
-        newStrategist,
-    )
-    .accounts({
-      // @ts-ignore
-      boringAccount: boringAccount,
-      signer: owner.publicKey,
-    })
+    .version()
+    .accounts({})
     .signers([])
     .rpc().then(tx => anchor.AnchorProvider.env().connection.confirmTransaction(tx).then(result => {
       if (result.value.err) {
-        console.error("Update strategist failed:", result.value.err);
+        console.error("Version call failed:", result.value.err);
       } else {
-        console.log("Update strategist successful: ", tx);
-        console.log("Strategist updated to: ", newStrategist.toString());
+        console.log("Version call successful: ", tx);
       }
     }));
   
 } catch (error) {
-  console.error("Update strategist failed:", error);
+  console.error("Version call failed:", error);
   throw error;
 }

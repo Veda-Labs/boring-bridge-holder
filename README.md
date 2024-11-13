@@ -13,7 +13,6 @@ A Solana program that facilitates token bridging using Hyperlane's infrastructur
 ### Strategist Role
 
 - The strategist is implemented as a normal externally owned account (not a PDA)
-- This design choice is necessary since PDAs with data cannot transfer lamports
 - The strategist has limited control, only being able to:
   1. Initiate transfers up to the current token balance
   2. Pay bridge fees using their own lamports
@@ -83,18 +82,11 @@ anchor build
 
 ## Testing
 
-> **Note:** Tests are currently dependent on having the correct keypair saved on your computer. Tests will fail if you use a different keypair because the PDA (Program Derived Address) for the boring account will be derived differently.
+Run the tests:
 
-1. Start a local Solana test validator:
-
-   ```bash
-   solana-test-validator
-   ```
-
-2. Run the tests:
-   ```bash
-    anchor test
-   ```
+```bash
+anchor test
+```
 
 ## Deploying
 
@@ -125,13 +117,52 @@ solana-keygen recover --outfile ./intermediate.json
 To see abandoned buffer accounts:
 
 ```bash
-solana program show --buffers --keypair ~/.config/solana/id.json -u https://eclipse.helius-rpc.com
+solana program show --buffers -u https://eclipse.helius-rpc.com
 ```
 
 To close abandoned buffer accounts:
 
 ```bash
 solana program close --buffers --keypair ~/.config/solana/id.json -u https://eclipse.helius-rpc.com
+```
+
+## Squads Multisig
+
+Navigate to [Backup Squads Website](https://backup.app.squads.so/transactions)
+
+Go to settings and set the following:
+RPC Url: https://eclipse.helius-rpc.com
+Program ID: eSQDSMLf3qxwHVHeTr9amVAGmZbRLY2rFdSURandt6f
+
+Then enter the multisig address.
+Squads multisig: 8QfUfa4QRqPrbvJ7h98VQPCE8vM6KFovYYEMkiVwSAaf
+
+## Upgrading
+
+To change upgrade authority. Note only add in the `--skip-new-upgrade-authority-signer-check` flag if you are sure the new upgrade authority is correct.
+
+```bash
+solana program set-upgrade-authority <PROGRAM_ID> --new-upgrade-authority <NEW_UPGRADE_AUTHORITY> -u https://eclipse.helius-rpc.com --skip-new-upgrade-authority-signer-check
+```
+
+Make necessary changes to the program, update the version number in lib.rs, and in tests/boring-bridge-holder.ts
+
+```bash
+solana program write-buffer target/deploy/boring_bridge_holder.so --url https://eclipse.helius-rpc.com
+```
+
+If txs fail, then recover the intermediate keypair and retry the txs with the intermediate keypair. Once you have the buffer account, update the `bufferAccount` variable in scripts/create_upgrade_tx.ts.
+
+Change the buffer authority to the multisig.
+
+```bash
+solana program set-buffer-authority <BUFFER_ACCOUNT> --new-buffer-authority <NEW_BUFFER_AUTHORITY> -u https://eclipse.helius-rpc.com
+```
+
+Then run
+
+```bash
+ts-node scripts/create_upgrade_tx.ts
 ```
 
 ## scripts

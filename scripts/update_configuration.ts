@@ -55,6 +55,12 @@ async function main() {
     decimals: new anchor.BN(config.decimals),
   }
 
+  console.log("BoringAccount:", boringAccount.toString());
+  const boringAccountHex = Buffer.from(boringAccount.toBytes()).toString('hex');
+  console.log("BoringAccountHex:", boringAccountHex);
+
+  
+
     const tx = await program.methods
       .updateConfiguration(newConfig)
       .accounts({

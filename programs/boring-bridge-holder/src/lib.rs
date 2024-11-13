@@ -4,6 +4,7 @@ use anchor_spl::token_interface::TokenAccount;
 use borsh::{BorshDeserialize, BorshSerialize};
 use solana_program::hash::hash;
 use solana_program::pubkey::Pubkey;
+use std::mem::size_of;
 
 pub mod instructions;
 use crate::instructions::transfer_remote;
@@ -242,6 +243,11 @@ mod boring_bridge_holder {
 
         Ok(())
     }
+
+    pub fn version(_ctx: Context<Version>) -> Result<()> {
+        msg!("Program version: 1.0.2");
+        Ok(())
+    }
 }
 
 #[derive(Accounts)]
@@ -249,7 +255,7 @@ pub struct Initialize<'info> {
     #[account(
         init,
         payer = signer,
-        space = 8 + 32 + 32 + 32 + 32 + 1,
+        space = size_of::<BoringState>() + 8,
         seeds = [b"boring_state", signer.key().as_ref()],
         bump
     )]
@@ -409,6 +415,9 @@ pub struct TransferRemoteContext<'info> {
     /// CHECK: Checked against PDA
     pub strategist_ata: InterfaceAccount<'info, TokenAccount>,
 }
+
+#[derive(Accounts)]
+pub struct Version {}
 
 #[derive(BorshSerialize, BorshDeserialize, Debug, Clone)]
 pub struct TransferRemote {

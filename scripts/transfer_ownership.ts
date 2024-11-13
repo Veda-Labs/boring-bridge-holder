@@ -13,23 +13,27 @@ const program = anchor.workspace.BoringBridgeHolder as Program<BoringBridgeHolde
 console.log("Transferring ownership...");
   
 try {
-  const creator = provider.wallet;
+  const creator = new anchor.web3.PublicKey("DuheUFDBEGh1xKKvCvcTPQwA8eR3oo58kzVpB54TW5TP");
   const oldOwner = provider.wallet;
-  const newOwner = provider.wallet;
-  
+  const newOwner = new anchor.web3.PublicKey("4Cj1s2ipALjJk9foQV4oDaZYCZwSsVkAShQL1KFVJG9b");
+
   // Find the boring account PDA
   const [boringAccount] = anchor.web3.PublicKey.findProgramAddressSync(
     [
       Buffer.from("boring_state"),
-      creator.publicKey.toBuffer()
+      creator.toBuffer()
     ],
     program.programId
   );
 
+  console.log("Boring Account:", boringAccount.toString());
+  console.log("Old Owner:", oldOwner.publicKey.toString());
+  console.log("New Owner:", newOwner.toString());
+
   // Transfer ownership
   program.methods
     .transferOwnership(
-        newOwner.publicKey,
+        newOwner,
     )
   .accounts({
     // @ts-ignore
