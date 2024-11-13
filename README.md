@@ -117,13 +117,38 @@ solana-keygen recover --outfile ./intermediate.json
 To see abandoned buffer accounts:
 
 ```bash
-solana program show --buffers --keypair ~/.config/solana/id.json -u https://eclipse.helius-rpc.com
+solana program show --buffers -u https://eclipse.helius-rpc.com
 ```
 
 To close abandoned buffer accounts:
 
 ```bash
 solana program close --buffers --keypair ~/.config/solana/id.json -u https://eclipse.helius-rpc.com
+```
+
+## Upgrading
+
+Squads program: eSQDSMLf3qxwHVHeTr9amVAGmZbRLY2rFdSURandt6f
+Squads multisig: 8QfUfa4QRqPrbvJ7h98VQPCE8vM6KFovYYEMkiVwSAaf
+
+To change upgrade authority. Note only add in the `--skip-new-upgrade-authority-signer-check` flag if you are sure the new upgrade authority is correct.
+
+```bash
+solana program set-upgrade-authority <PROGRAM_ID> --new-upgrade-authority <NEW_UPGRADE_AUTHORITY> -u https://eclipse.helius-rpc.com --skip-new-upgrade-authority-signer-check
+```
+
+Make necessary changes to the program, update the version number in lib.rs, and in tests/boring-bridge-holder.ts
+
+```bash
+solana program write-buffer target/deploy/boring_bridge_holder.so --url https://eclipse.helius-rpc.com
+```
+
+If txs fail, then recover the intermediate keypair and retry the txs with the intermediate keypair. Once you have the buffer account, update the `bufferAccount` variable in scripts/create_upgrade_tx.ts.
+
+Then run
+
+```bash
+ts-node scripts/create_upgrade_tx.ts
 ```
 
 ## scripts

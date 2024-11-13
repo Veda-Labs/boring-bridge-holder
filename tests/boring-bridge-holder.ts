@@ -922,4 +922,13 @@ describe("boring-bridge-holder", () => {
     const foundLog = txResult.meta.logMessages.find(log => log.includes(expectedLog));
     expect(foundLog).to.exist;
   });
+
+  it("Should return the correct version", async () => {
+    const ix = await program.methods.version().accounts({}).signers([]).instruction();
+
+    let txResult = await createAndProcessTransaction(client, creator, ix, []);
+    expect(txResult.result).to.be.null;
+    const foundLog = txResult.meta.logMessages.find(log => log.includes("Program version: 1.0.2"));
+    expect(foundLog).to.exist;
+  });
 });
