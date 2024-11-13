@@ -245,6 +245,7 @@ mod boring_bridge_holder {
     }
 
     /// Returns the program version
+    /// Used to verify the program was upgraded
     pub fn version(_ctx: Context<Version>) -> Result<()> {
         msg!("Program version: 1.0.3");
         Ok(())
@@ -399,7 +400,7 @@ pub struct TransferRemoteContext<'info> {
     #[account(
         mut,
         associated_token::mint = mint_auth,
-        associated_token::authority = signer,
+        associated_token::authority = signer.key(),
         associated_token::token_program = token_2022
     )]
     /// CHECK: Checked against PDA

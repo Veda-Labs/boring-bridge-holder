@@ -84,6 +84,8 @@ pub fn execute_transfer_remote<'info>(
             amount_or_id,
         };
 
+        // First 8 bytes represent the `PROGRAM_INSTRUCTION_DISCRIMINATOR`, final byte indicates
+        // the instruction type of `transfer_remote`.
         data = vec![1, 1, 1, 1, 1, 1, 1, 1, 1];
         data.extend(transfer_data.try_to_vec()?);
     }
