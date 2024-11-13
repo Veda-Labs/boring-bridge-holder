@@ -75,7 +75,7 @@ async function main() {
     const provider = anchor.AnchorProvider.env();
     anchor.setProvider(provider);
     // Configuration
-    const bufferAccount = new PublicKey("EdPhrpChYNfUf3zoVeqFDBWjEMoVQYPwzY7oY52P3tNt");
+    const bufferAccount = new PublicKey("33YQQJL4882AHEZbqTYzkzAvxftvYvWJ5kLZNiLKsXJF");
     const programId = new PublicKey("AWzzXzsLQvddsYdphCV6CTcr5ALXtg8AAtZXTqbUcVBF");
     const multisigAuthority = new PublicKey("4Cj1s2ipALjJk9foQV4oDaZYCZwSsVkAShQL1KFVJG9b");
     const spillAddress = new PublicKey("DuheUFDBEGh1xKKvCvcTPQwA8eR3oo58kzVpB54TW5TP");
