@@ -1,70 +1,114 @@
 import { Program } from "@coral-xyz/anchor";
 import anchor from "@coral-xyz/anchor";
-import { Transaction, PublicKey } from "@solana/web3.js";
+import { 
+  Transaction, 
+  PublicKey, 
+  SYSVAR_CLOCK_PUBKEY,
+  SYSVAR_RENT_PUBKEY,
+  TransactionInstruction 
+} from "@solana/web3.js";
 import bs58 from 'bs58';
-import { execSync } from 'child_process';
 import 'dotenv/config';
+
+// BPF Loader Program ID
+const BPF_UPGRADE_LOADER_ID = new PublicKey('BPFLoaderUpgradeab1e11111111111111111111111');
+
+async function createUpgradeInstruction(
+  programId: PublicKey,
+  bufferAddress: PublicKey,
+  upgradeAuthority: PublicKey,
+  spillAddress: PublicKey
+) {
+  const [programDataAddress] = await PublicKey.findProgramAddress(
+    [programId.toBuffer()],
+    BPF_UPGRADE_LOADER_ID
+  );
+
+  const keys = [
+    {
+      pubkey: programDataAddress,
+      isWritable: true,
+      isSigner: false,
+    },
+    {
+      pubkey: programId,
+      isWritable: true,
+      isSigner: false,
+    },
+    {
+      pubkey: bufferAddress,
+      isWritable: true,
+      isSigner: false,
+    },
+    {
+      pubkey: spillAddress, // Using upgrade authority as spill address
+      isWritable: true,
+      isSigner: false,
+    },
+    {
+      pubkey: SYSVAR_RENT_PUBKEY,
+      isWritable: false,
+      isSigner: false,
+    },
+    {
+      pubkey: SYSVAR_CLOCK_PUBKEY,
+      isWritable: false,
+      isSigner: false,
+    },
+    {
+      pubkey: upgradeAuthority,
+      isWritable: false,
+      isSigner: true,
+    },
+  ];
+
+  return new TransactionInstruction({
+    keys,
+    programId: BPF_UPGRADE_LOADER_ID,
+    data: Buffer.from([3, 0, 0, 0]), // Upgrade instruction bincode
+  });
+}
 
 async function main() {
   try {
-    // Configuration
-    const bufferAccount = "EdPhrpChYNfUf3zoVeqFDBWjEMoVQYPwzY7oY52P3tNt";
-    const programId = "AWzzXzsLQvddsYdphCV6CTcr5ALXtg8AAtZXTqbUcVBF";
-    const multisigAuthority = "4Cj1s2ipALjJk9foQV4oDaZYCZwSsVkAShQL1KFVJG9b";
     const anchor = require("@coral-xyz/anchor");
     const provider = anchor.AnchorProvider.env();
     anchor.setProvider(provider);
+    // Configuration
+    const bufferAccount = new PublicKey("EdPhrpChYNfUf3zoVeqFDBWjEMoVQYPwzY7oY52P3tNt");
+    const programId = new PublicKey("AWzzXzsLQvddsYdphCV6CTcr5ALXtg8AAtZXTqbUcVBF");
+    const multisigAuthority = new PublicKey("4Cj1s2ipALjJk9foQV4oDaZYCZwSsVkAShQL1KFVJG9b");
+    const spillAddress = new PublicKey("DuheUFDBEGh1xKKvCvcTPQwA8eR3oo58kzVpB54TW5TP");
+    
+    // Create our own upgrade instruction
+    const upgradeIx = await createUpgradeInstruction(
+      programId,
+      bufferAccount,
+      multisigAuthority,
+      spillAddress
+    );
+
+    // Create a transaction with our instruction
     const latestBlockhash = await provider.connection.getLatestBlockhash();
+    const tx = new Transaction({
+      feePayer: multisigAuthority,
+      ...latestBlockhash,
+    }).add(upgradeIx);
 
+    // Serialize and compare
+    const serializedTx = tx.serializeMessage();
 
-    // Get the base64 transaction message from solana CLI
-    const command = `solana program upgrade \
-      --upgrade-authority ${multisigAuthority} \
-      --sign-only \
-      --dump-transaction-message \
-      --blockhash ${latestBlockhash.blockhash} \
-      --url https://eclipse.helius-rpc.com \
-      ${bufferAccount} \
-      ${programId}`;
+    const encoded = bs58.encode(serializedTx);
 
-    const output = execSync(command).toString();
-
-    // Extract just the Transaction Message
-    const txMessageMatch = output.match(/Transaction Message: (.*?)(?:\n|$)/);
-    if (!txMessageMatch) {
-      throw new Error("Could not find transaction message in CLI output");
-    }
-
-    console.log("Base64 Message:", txMessageMatch[1]);
+    console.log("\nTransaction Details:");
+    console.log("- Instructions:", tx.instructions.length);
+    console.log("- Fee Payer:", tx.feePayer.toBase58());
+    console.log("- Recent Blockhash:", tx.recentBlockhash);
+    console.log("- Serialized Size:", serializedTx.length, "bytes");
     
-    // Convert base64 to base58
-    const base64Message = txMessageMatch[1];
-    const messageBytes = Buffer.from(base64Message, 'base64');
-    const base58Message = bs58.encode(messageBytes);
+    require('fs').writeFileSync('encoded_transaction.txt', encoded);
     
-    console.log("\nUpgrade Transaction Details:");
-    console.log("- Program ID:", programId);
-    console.log("- Buffer Account:", bufferAccount);
-    console.log("- Multisig Authority:", multisigAuthority);
-    console.log("\nEncoded Transaction (base58):");
-    console.log(base58Message);
-
-    const decodedMessage = bs58.decode(base58Message);
-    const versionedMessage = anchor.web3.VersionedMessage.deserialize(decodedMessage);
-    
-    console.log("\nDecoded Transaction Details:");
-    console.log("Instructions:", versionedMessage.instructions.map(ix => ({
-      programId: versionedMessage.staticAccountKeys[ix.programIdIndex].toBase58(),
-      keys: ix.accounts.map((index) => {
-        const accountMeta = versionedMessage.staticAccountKeys[index];
-        return {
-          pubkey: accountMeta.toBase58(),
-          isSigner: versionedMessage.isAccountSigner(index),
-          isWritable: versionedMessage.isAccountWritable(index)
-        };
-      }),
-      data: bs58.encode(ix.data)
-    })));
+    console.log("\nEncoded transaction has been written to encoded_transaction.txt");
 
   } catch (error) {
     console.error("Failed to create upgrade transaction:", error);

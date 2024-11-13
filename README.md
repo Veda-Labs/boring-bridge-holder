@@ -126,10 +126,18 @@ To close abandoned buffer accounts:
 solana program close --buffers --keypair ~/.config/solana/id.json -u https://eclipse.helius-rpc.com
 ```
 
-## Upgrading
+## Squads Multisig
 
-Squads program: eSQDSMLf3qxwHVHeTr9amVAGmZbRLY2rFdSURandt6f
+Navigate to [Backup Squads Website](https://backup.app.squads.so/transactions)
+
+Go to settings and set the following:
+RPC Url: https://eclipse.helius-rpc.com
+Program ID: eSQDSMLf3qxwHVHeTr9amVAGmZbRLY2rFdSURandt6f
+
+Then enter the multisig address.
 Squads multisig: 8QfUfa4QRqPrbvJ7h98VQPCE8vM6KFovYYEMkiVwSAaf
+
+## Upgrading
 
 To change upgrade authority. Note only add in the `--skip-new-upgrade-authority-signer-check` flag if you are sure the new upgrade authority is correct.
 
@@ -144,6 +152,12 @@ solana program write-buffer target/deploy/boring_bridge_holder.so --url https://
 ```
 
 If txs fail, then recover the intermediate keypair and retry the txs with the intermediate keypair. Once you have the buffer account, update the `bufferAccount` variable in scripts/create_upgrade_tx.ts.
+
+Change the buffer authority to the multisig.
+
+```bash
+solana program set-buffer-authority <BUFFER_ACCOUNT> --new-buffer-authority <NEW_BUFFER_AUTHORITY> -u https://eclipse.helius-rpc.com
+```
 
 Then run
 

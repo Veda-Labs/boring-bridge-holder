@@ -11,7 +11,7 @@ async function main() {
     anchor.setProvider(provider);
 
     const program = anchor.workspace.BoringBridgeHolder as Program<BoringBridgeHolder>;
-  const creator = new anchor.web3.PublicKey("DuheUFDBEGh1xKKvCvcTPQwA8eR3oo58kzVpB54TW5TP");
+    const creator = new anchor.web3.PublicKey("DuheUFDBEGh1xKKvCvcTPQwA8eR3oo58kzVpB54TW5TP");
     
     // This should be your multisig address
     const multisigAuthority = new anchor.web3.PublicKey("4Cj1s2ipALjJk9foQV4oDaZYCZwSsVkAShQL1KFVJG9b");
