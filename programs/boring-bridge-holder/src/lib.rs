@@ -244,8 +244,9 @@ mod boring_bridge_holder {
         Ok(())
     }
 
+    /// Returns the program version
     pub fn version(_ctx: Context<Version>) -> Result<()> {
-        msg!("Program version: 1.0.2");
+        msg!("Program version: 1.0.3");
         Ok(())
     }
 }
@@ -273,7 +274,6 @@ pub struct UpdateOwner<'info> {
         bump = boring_account.bump,
     )]
     pub boring_account: Account<'info, BoringState>,
-    #[account(mut)] // might not be needed
     pub signer: Signer<'info>,
 }
 
@@ -285,7 +285,6 @@ pub struct UpdateStrategist<'info> {
         bump = boring_account.bump,
     )]
     pub boring_account: Account<'info, BoringState>,
-    #[account(mut)] // might not be needed
     pub signer: Signer<'info>,
 }
 
@@ -297,7 +296,6 @@ pub struct UpdateConfiguration<'info> {
         bump = boring_account.bump,
     )]
     pub boring_account: Account<'info, BoringState>,
-    #[account(mut)] // might not be needed
     pub signer: Signer<'info>,
 }
 
@@ -311,21 +309,17 @@ pub struct TransferRemoteContext<'info> {
     #[account(mut)]
     pub signer: Signer<'info>,
     /// Taret program
-    #[account()]
     /// CHECK: Checked in config hash
     pub target_program: AccountInfo<'info>,
     /// System Program account
     pub system_program: Program<'info, System>,
     /// NOOP
-    #[account()]
     /// CHECK: Checked in config hash
     pub noop: AccountInfo<'info>,
     /// Token PDA owned by program_target
-    #[account()]
     /// CHECK: Checked in config hash
     pub token_pda: AccountInfo<'info>,
     /// Mailbox Program
-    #[account()]
     /// CHECK: Checked in config hash
     pub mailbox_program: AccountInfo<'info>,
     /// Mailbox Outbox
@@ -333,13 +327,11 @@ pub struct TransferRemoteContext<'info> {
     /// CHECK: Checked in config hash
     pub mailbox_outbox: AccountInfo<'info>,
     /// Message Dispatch Authority
-    #[account()]
     /// CHECK: Checked in config hash
     pub message_dispatch_authority: AccountInfo<'info>,
     /// Unique message / gas payment account
-    #[account(signer)]
     /// CHECK: Only needs to be a signer
-    pub unique_message: AccountInfo<'info>,
+    pub unique_message: Signer<'info>,
     /// Message storage PDA
     #[account(
         mut,
@@ -356,7 +348,6 @@ pub struct TransferRemoteContext<'info> {
     /// CHECK: Checked against PDA
     pub message_storage_pda: AccountInfo<'info>,
     /// IGP Program
-    #[account()]
     /// CHECK: Checked in config hash
     pub igp_program: AccountInfo<'info>,
     /// IGP Program Data
@@ -379,7 +370,6 @@ pub struct TransferRemoteContext<'info> {
     /// CHECK: Checked against PDA
     pub gas_payment_pda: AccountInfo<'info>,
     /// IGP Account
-    #[account()]
     /// CHECK: Checked in config hash
     pub igp_account: AccountInfo<'info>,
     /// Token Sender
@@ -419,7 +409,7 @@ pub struct TransferRemoteContext<'info> {
 #[derive(Accounts)]
 pub struct Version {}
 
-#[derive(BorshSerialize, BorshDeserialize, Debug, Clone)]
+#[derive(BorshSerialize, Debug, Clone)]
 pub struct TransferRemote {
     pub destination_domain: u32,
     pub recipient: [u8; 32],    // H256
