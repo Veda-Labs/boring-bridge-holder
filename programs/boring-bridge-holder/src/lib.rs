@@ -413,8 +413,8 @@ pub struct Version {}
 #[derive(BorshSerialize, Debug, Clone)]
 pub struct TransferRemote {
     pub destination_domain: u32,
-    pub recipient: [u8; 32],    // H256
-    pub amount_or_id: [u8; 32], // U256, serialized as a byte array
+    pub recipient: [u8; 32],
+    pub amount_or_id: [u8; 32],
 }
 
 /// Configuration data for the Boring Bridge Holder
