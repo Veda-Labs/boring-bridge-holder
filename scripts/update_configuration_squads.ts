@@ -86,7 +86,7 @@ async function main() {
     
     console.log("\nTransaction Details:");
     console.log("- Instructions:", tx.instructions.length);
-    console.log("- Fee Payer:", tx.feePayer.toBase58());
+    console.log("- Fee Payer:", tx.feePayer?.toBase58() || "undefined");
     console.log("- Recent Blockhash:", tx.recentBlockhash);
     console.log("- Serialized Size:", serializedTransaction.length, "bytes");
     
