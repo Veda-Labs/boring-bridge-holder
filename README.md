@@ -99,13 +99,13 @@ anchor deploy --provider.cluster https://api.devnet.solana.com
 Eclipse Mainnet:
 
 ```bash
-solana program deploy target/deploy/boring_bridge_holder.so --keypair ~/.config/solana/id.json --url https://eclipse.helius-rpc.com
+solana program deploy target/deploy/boring_bridge_holder.so --keypair ~/.config/solana/id.json -u https://eclipse.helius-rpc.com
 ```
 
 To retry txs:
 
 ```bash
-solana program deploy target/deploy/boring_bridge_holder.so --keypair ~/.config/solana/id.json --url https://eclipse.helius-rpc.com --buffer <PATH_TO_INTERMEDIATE_KEYPAIR>
+solana program deploy target/deploy/boring_bridge_holder.so --keypair ~/.config/solana/id.json -u https://eclipse.helius-rpc.com --buffer <PATH_TO_INTERMEDIATE_KEYPAIR>
 ```
 
 To generate an intermediate keypair:
@@ -148,7 +148,7 @@ solana program set-upgrade-authority <PROGRAM_ID> --new-upgrade-authority <NEW_U
 Make necessary changes to the program, update the version number in lib.rs, and in tests/boring-bridge-holder.ts
 
 ```bash
-solana program write-buffer target/deploy/boring_bridge_holder.so --url https://eclipse.helius-rpc.com
+solana program write-buffer target/deploy/boring_bridge_holder.so -u https://eclipse.helius-rpc.com
 ```
 
 If txs fail, then recover the intermediate keypair and retry the txs with the intermediate keypair. Once you have the buffer account, update the `bufferAccount` variable in scripts/create_upgrade_tx.ts.
@@ -177,16 +177,29 @@ Before running any scripts:
 
 2. Fill out the `.env` file with your configuration values
 
+3. Run scripts using ts-node:
+
 - `initialize.ts`: Initialize the boring bridge holder account
 - `transfer_ownership.ts`: Transfer ownership of the boring bridge holder account
 - `update_configuration.ts`: Update the configuration
 - `update_strategist.ts`: Update the strategist
 - `transfer_remote.ts`: Transfer tokens remotely
 
-3. Run scripts using ts-node:
-   ```bash
-   ts-node scripts/<script-name>.ts
-   ```
+  ```bash
+  ts-node scripts/<script-name>.ts
+  ```
+
+## Verifying deployed program matches local program
+
+- Make sure [`solana-verify`](https://crates.io/crates/solana-verify) is installed.
+- Make sure `anchor build` has been run.
+- Run the following command:
+
+```bash
+ts-node scripts/verify_program.ts
+```
+
+Under the hood this script is just using `solana-verify get-executable-hash` and `solana-verify get-program-hash` to verify the program hashes match.
 
 ## Program Structure
 
@@ -223,8 +236,8 @@ Before running any scripts:
 - Message Dispatch Authority
 - IGP Program
 - IGP Program Data
-- IGP Account
-- Token Sender
+- IGP Account **(This is really the overhead IGP program)**
+- Token Sender **(This is really the IGP account)**
 - Token 2022 Program
 - Mint Authority
 - Destination Domain

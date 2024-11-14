@@ -928,7 +928,7 @@ describe("boring-bridge-holder", () => {
 
     let txResult = await createAndProcessTransaction(client, creator, ix, []);
     expect(txResult.result).to.be.null;
-    const foundLog = txResult.meta.logMessages.find(log => log.includes("Program version: 1.0.2"));
+    const foundLog = txResult.meta.logMessages.find(log => log.includes("Program version: 1.0.3"));
     expect(foundLog).to.exist;
   });
 });
