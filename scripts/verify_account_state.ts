@@ -14,15 +14,13 @@ console.log("Reading account state...");
   
 async function main() {
   try {
-    const creator = provider.wallet;
-    const owner = provider.wallet;
-    const newStrategist = new anchor.web3.PublicKey("J2V6fTUnxem8WLwWiofAuptFwP3sJNeKcT8SRWDDrQ4z");
+    const creator = new anchor.web3.PublicKey("DuheUFDBEGh1xKKvCvcTPQwA8eR3oo58kzVpB54TW5TP");
 
     // Find the boring account PDA
     const [boringAccount] = anchor.web3.PublicKey.findProgramAddressSync(
       [
         Buffer.from("boring_state"),
-        creator.publicKey.toBuffer()
+        creator.toBuffer()
       ],
       program.programId
     );
